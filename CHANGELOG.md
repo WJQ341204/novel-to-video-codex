@@ -6,6 +6,55 @@
 
 ## [未发布]
 
+### 新增（内容层补齐 · 2026-09-28，对照 AI 漫剧资源包的差距分析）
+- **`prompts/` 提示词素材库**（新增，4 个词典共 81 条）
+  - `camera.md` 28 条运镜（推/拉/摇/移/跟/环绕/角度/组合，含雨夜专用的 `lightning_push`）
+  - `micro_expression.md` 22 条微表情（眼/唇/呼吸/手/眉）——短片只有 2~3 秒，全靠这个演戏
+  - `style.md` 21 条影调与构图
+  - `neg.md` 10 档负面词（base / face / hands / costume / interior / period / motion …）
+  - 加载器 `scripts/promptbank.py`：`get("camera","push_in")` / `list` / `find`，按 mtime 缓存
+  - **意义**：以前 prompt 手写进 SCENES，写完一次就锁死在那部片子里；现在可跨片复用
+- **人物小传体系化**（`assets/cast.json` v2）
+  - 每个角色新增 `look`（详细英文外貌）与 `bio`（年龄/身份/性格/背景/服装/习惯动作/声线风格）
+  - 叶玄机「思考时摩挲药箱铜扣」、掌柜「抬眼时才真正看人」——习惯动作直接进 prompt 与情绪选择
+- **风格模板**（对应 DramaClaw「虾格」）
+  - `cast.json` 新增 `styles` + `active_style`：`古风·胡金铨`（青囊在用）/ `暗调悬疑` / `水墨写意`
+  - 每段含 prompt_add / neg_add / color / lens；换风格只改 `active_style`，不改脚本
+- **剧本层 `scripts/script_layer.py`**（补齐差距最大的一项）
+  - 从「小说 → 分镜」一步到位，改为「小说 → 剧本（结构+节拍+爽点）→ 分镜」
+  - `check()` 自动校验：钩子 / 节拍 / 爽点 / beat 引用 / 静音可懂 / 角色已登记 /
+    声线已配 / 运镜与微表情在词典内 / 相邻幕不重复叙事 / 总时长
+  - `to_scenes()` 导出 SCENES 兼容结构，`vid` 由运镜+微表情词典拼装，不再手写
+  - 示例剧本 `story/青囊_剧本.json`（4 节拍 + 2 爽点 + 4 幕，校验零 ERROR）
+- **`docs/出品自检清单.md`**：出品前 5 段自检（剧本/出图前/出图后/配音字幕/成片），含常用命令
+- `novel_video.py` 新增 `--style` / `--neg` 开关（与 `--cast` 一样默认关闭，
+  保证既有产物的参数指纹不受影响——已回归验证 4 幕仍判定为已完成）
+
+### 新增（工程层调优 · 2026-09-28）
+- **资产表 `assets/cast.json` + 加载器 `scripts/cast.py`**（对标 DramaClaw「虾塘」）
+  - 四类资产统一收口：角色 / 场景 / 道具 / **声线**；新增角色、改音色、调 IPAdapter 权重只改 json
+  - `voice_for(说话人, 镜号)`：shot_overrides > 角色自带 > defaults 三级查表，支持别名归一
+    （"老者"→"掌柜"）。**声线不再硬编码在 `add_stepfun_tts.py`**
+  - `enrich_prompt(镜号, prompt)`：文本层一致性锚点（`--cast` 开关启用，默认关闭以免影响既有产物）
+  - CLI：`python scripts/cast.py show` / `voice 司马谷岩 101`
+- **断点续跑 `scripts/run_state.py`**（对标 DramaClaw「虾条」）
+  - 每步记录 status / 参数指纹 sig / 产物路径，落到 `output/novel_demo_v2/run_state.json`
+  - 重跑自动跳过「已完成 + 参数未变 + 产物还在且不是半成品」的步骤；改 prompt 或改尺寸只重做受影响那一步
+  - `novel_video.py` 新增 `--force`（忽略状态全量重做）/ `--adopt`（把现有产物登记为已完成，不重渲）
+  - CLI：`python scripts/run_state.py show` / `reset [镜号|--all]`
+- **青囊补台词**：4 幕原本无台词 → 成了纯字幕默片。现补叶玄机 / 掌柜对白，
+  配好声线（叶玄机=boyinnanshi 平静4、掌柜=ruyananshi 平静5、镜8 神秘6）
+
+### 修复
+- **关键帧不可复现（重要）**：`seed = abs(hash(f"nv2_{id}"))` —— Python 字符串哈希带随机盐，
+  每次进程结果都不同，等于每跑一次都是新种子，关键帧无法复现、角色一致性无从谈起。
+  改为 `seed_for()`（hashlib 确定性种子），跨进程跨天稳定（实测两次运行 1→1073986316 一致）
+- **配音的台词在画面上看不见**：`add_stepfun_tts.py` 屏显只叠了 `nar`，而念的是 `lines`，
+  导致"听着有台词、画面上没有"。现 `scene_subtitle()` 改为两段式：背景旁白（灰白小字）
+  + 角色台词（暖黄大字，1.1 倍字号）同时上屏
+- **字幕 PNG 文件名用内置 hash**：同样受哈希随机化影响，每次运行都重新生成一遍。
+  改为 md5 前 10 位，跨运行可复用缓存
+
 ### 新增（优化方案 P0/P2/P3 落地）
 - **P2 · TTS 缓存 + 并发**（`main.py`）
   - `generate_tts` 拆为「缓存包装层 + `_generate_tts_impl` 实现层」，命中缓存直接复用，

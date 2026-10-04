@@ -1,0 +1,206 @@
+{
+  "version": 2,
+  "updated": "2026-09-28",
+  "note": "全片资产总表：角色 / 场景 / 道具 / 声线 / 风格。新增角色或改声线只改这里，不要改脚本。",
+
+  "defaults": {
+    "engine": "stepfun",
+    "voice": "cixingnansheng",
+    "mood": "平静",
+    "intensity": 5,
+    "ipadapter_weight": 0.6,
+    "ipadapter_faceid_weight": 0.65,
+    "lora_weight": 0.7,
+    "ckpt": "RealVisXL_V4.0.safetensors"
+  },
+
+  "active_style": "古风·胡金铨",
+
+  "styles": {
+    "古风·胡金铨": {
+      "prompt_add": "ink-wash mood, misty damp air, bamboo and wood textures, minimalist composition with negative space, restrained palette, handheld film grain",
+      "neg_add": "neon, cyberpunk, sci-fi, modern clothing, zippers, plastic, oversaturated",
+      "color": "冷墨色为主，油灯暖黄为唯一暖源",
+      "lens": "35mm anamorphic, shallow depth of field, natural available light",
+      "note": "适配《青囊异闻录》雨夜药铺的调性"
+    },
+    "暗调悬疑": {
+      "prompt_add": "low-key chiaroscuro, single hard light source, deep shadow, cold rim light, tense atmosphere",
+      "neg_add": "bright flat lighting, cheerful, pastel",
+      "color": "冷蓝与深褐，对比强烈",
+      "lens": "50mm, shallow depth, hard shadows",
+      "note": "适配审讯、对峙、揭密类场次"
+    },
+    "水墨写意": {
+      "prompt_add": "traditional Chinese ink wash painting, rice paper texture, flowing brush strokes, muted monochrome with one accent color",
+      "neg_add": "photorealistic skin texture, modern objects, high saturation",
+      "color": "墨色 + 一点朱砂",
+      "lens": "flat composition, painterly",
+      "note": "适配回忆、梦境、过场"
+    }
+  },
+
+  "characters": {
+    "叶玄机": {
+      "alias": ["young man", "青年", "叶修"],
+      "anchor": "a young Chinese man with short dark hair, calm steady gaze, dark teal cotton jacket",
+      "look": "a young Chinese man around twenty-two, short straight black hair slightly damp, narrow calm eyes with a steady measuring gaze, thin lips pressed flat, clean-shaven, pale oval face, wearing a dark teal cotton jacket over a worn grey inner robe, a weathered wooden medicine box on his back, half a bronze bell hanging at his waist, rain-soaked collar",
+      "bio": {
+        "age": "二十二",
+        "identity": "游方医者",
+        "personality": "话少、观察力强、不轻易示弱，遇事先看再动",
+        "backstory": "师门遭难，独身南下寻访青囊残卷，一路靠看病糊口",
+        "costume": "深青布衣，内衬灰旧中衣，背旧药箱，腰间悬半枚铜铃",
+        "habits": "思考时摩挲药箱铜扣；被人看穿时会先沉默一息",
+        "voice_style": "偏低、语速慢、少用语气词，紧张时句子更短"
+      },
+      "ref": "asset_char_yexuanji.png",
+      "has_face": true,
+      "voice": "boyinnanshi",
+      "mood": "平静",
+      "intensity": 4
+    },
+    "掌柜": {
+      "alias": ["old shopkeeper", "老者", "花甲老者"],
+      "anchor": "an elderly Chinese shopkeeper with crystal magnifier glasses, grizzled beard, calm wise expression",
+      "look": "an elderly Chinese man in his sixties, sparse grizzled beard, deep nasolabial folds, wearing round crystal magnifier glasses, thin pale lips, calm unreadable expression, dark brown padded jacket, ink-stained fingers, standing behind a wooden counter with hundred-eye medicine cabinets behind",
+      "bio": {
+        "age": "花甲（六十上下）",
+        "identity": "回春堂掌柜",
+        "personality": "表面和气迟缓，实则眼毒；说话留半句",
+        "backstory": "守着祖上传下的药铺，认得叶玄机师门的旧物",
+        "costume": "深褐夹袄，袖口沾墨，戴水晶老花镜",
+        "habits": "说话前先研两圈墨；抬眼时才真正看人",
+        "voice_style": "沙哑偏慢，尾音略沉，压低声音时最危险"
+      },
+      "ref": "asset_char_zhanggui.png",
+      "has_face": true,
+      "voice": "ruyananshi",
+      "mood": "平静",
+      "intensity": 5
+    },
+    "司马谷岩": {
+      "alias": ["司马", "壮汉"],
+      "anchor": "a burly brutal Chinese man with heavy beard, coarse linen robe, savage grin",
+      "look": "a burly brutal Chinese man in his forties, heavy black beard, thick brows, broad shoulders, coarse linen robe open at the chest, scar across the left cheek, savage grin showing teeth, thick fingers gripping a broad saber",
+      "bio": {
+        "age": "四十出头",
+        "identity": "草莽刀客",
+        "personality": "嚣张、轻敌、得势便忘形，受挫后暴怒",
+        "backstory": "占山为王，靠一把刀在边境混了十几年",
+        "costume": "粗麻短褐，敞胸，左颊一道旧疤",
+        "habits": "说话时刀尖不自觉地挑动；笑起来先咧嘴再出声",
+        "voice_style": "粗哑、音量大、语调上扬，发怒时咬字极重"
+      },
+      "ref": "",
+      "has_face": true,
+      "voice": "cixingnansheng",
+      "mood": "得意",
+      "intensity": 7
+    }
+  },
+
+  "scenes": {
+    "回春堂前堂": {
+      "anchor": "old Chinese herbal medicine shop interior, hundred-eye medicine cabinets, warm oil lamp",
+      "ref": "asset_scene_qiantang.png"
+    },
+    "雨夜街道": {
+      "anchor": "rain-soaked blue stone street at night, old Chinese medicine shop facade, wooden plaque 回春堂",
+      "ref": ""
+    },
+    "后院": {
+      "anchor": "herbal medicine shop backyard, drying racks, stone mortar",
+      "ref": "asset_scene_houyuan.png"
+    }
+  },
+
+  "props": {
+    "水晶老花镜": {
+      "anchor": "crystal magnifier glasses",
+      "ref": ""
+    },
+    "泛黄医图": {
+      "anchor": "a yellowed anatomical chart on the wall",
+      "ref": ""
+    },
+    "青铜药铃": {
+      "anchor": "a small archaic bronze medicine bell with tiny inscriptions,铃兰令",
+      "ref": ""
+    }
+  },
+
+  "voices": {
+    "旁白": {
+      "engine": "stepfun",
+      "voice": "ruyananshi",
+      "mood": "平静",
+      "intensity": 3,
+      "note": "默认不配音（nar 只屏显）。仅当例外场景显式允许旁白配音时才用。"
+    }
+  },
+
+  "shot_cast": {
+    "1": ["叶玄机"],
+    "4": ["掌柜"],
+    "8": ["掌柜"],
+    "12": ["叶玄机"],
+    "101": ["司马谷岩"],
+    "102": ["司马谷岩"],
+    "201": ["掌柜", "叶玄机"],
+    "202": ["叶玄机"],
+    "301": ["叶玄机", "掌柜"],
+    "302": ["掌柜"]
+  },
+
+  "shot_overrides": {
+    "301": {
+      "speaker": "叶玄机",
+      "mood": "压抑",
+      "intensity": 4,
+      "note": "把铜铃放到柜台上，话少、压着说，不抬眼"
+    },
+    "302": {
+      "speaker": "掌柜",
+      "mood": "压抑",
+      "intensity": 7,
+      "note": "抬眼那一刻压了三十年的东西破土，前段沙哑发沉，尾音微颤"
+    },
+    "201": {
+      "speaker": "掌柜",
+      "mood": "释然",
+      "intensity": 4,
+      "note": "守了三十年的担子交出去，语速慢、如释重负，不带炫耀"
+    },
+    "202": {
+      "speaker": "叶玄机",
+      "mood": "平静",
+      "intensity": 5,
+      "note": "破晓跨出门槛，回身一句，短促但站稳"
+    },
+    "8": {
+      "speaker": "掌柜",
+      "mood": "神秘",
+      "intensity": 6,
+      "note": "抬眼，镜片后目光如刀，短句压低声音"
+    },
+    "12": {
+      "speaker": "叶玄机",
+      "mood": "平静",
+      "intensity": 5,
+      "note": "盯着墙上医图，低声自语"
+    },
+    "101": {
+      "speaker": "司马谷岩",
+      "mood": "得意",
+      "intensity": 7,
+      "note": "轻佻狞笑地撂话"
+    },
+    "102": {
+      "speaker": "司马谷岩",
+      "mood": "愤怒",
+      "intensity": 9,
+      "note": "被轰飞后的咆哮"
+    }
+  }
+}

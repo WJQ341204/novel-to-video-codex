@@ -12249,6 +12249,169 @@ async def export_scene_prompts(job_id: str, format: str = "txt"):
                 lines.append(f"情绪: {s.mood}")
             lines.append("")
         return {"content": "\n".join(lines), "format": "txt"}
+
+
+# ══════════════════════════════════════════════════════════════
+#  智能体出图 (Agent Image) — 一句指令，变出不一样的画
+#  引擎实现见 scripts/agent_image.py；页面见 /agent
+# ══════════════════════════════════════════════════════════════
+from fastapi.responses import StreamingResponse
+try:
+    from agent_image import (generate as agent_generate, load_history as agent_history,
+                             list_styles as agent_styles, AGENT_DIR as AGENT_IMG_DIR,
+                             image_to_video as agent_video, update_history_video as agent_update_video)
+except ImportError:  # 直接以 scripts/ 为工作目录启动时
+    from scripts.agent_image import (generate as agent_generate, load_history as agent_history,
+                                     list_styles as agent_styles, AGENT_DIR as AGENT_IMG_DIR,
+                                     image_to_video as agent_video, update_history_video as agent_update_video)
+
+
+@app.get("/agent", include_in_schema=False)
+async def agent_image_page():
+    """智能体出图页面（对话式界面）"""
+    page = PROJECT_ROOT / "static" / "agent.html"
+    if not page.exists():
+        raise HTTPException(404, "agent.html 不存在")
+    return FileResponse(page, media_type="text/html")
+
+
+@app.get("/api/agent-image/styles")
+async def api_agent_image_styles():
+    """可用风格包列表"""
+    return {"styles": agent_styles()}
+
+
+@app.get("/api/agent-image/history")
+async def api_agent_image_history(limit: int = 60):
+    """历史出图记录（新→旧）"""
+    try:
+        items = agent_history(limit=max(1, min(limit, 300)))
+    except Exception as e:
+        items = []
+        logger.warning(f"[agent-image] 读取历史失败: {str(e)[:100]}")
+    return {"items": items}
+
+
+@app.post("/api/agent-image/generate")
+async def api_agent_image_generate(req: dict):
+    """按指令出图（NDJSON 流式：每张图完成即推送，前端可逐张渲染）。
+
+    body: {"instruction": "...", "variants": 1~8, "style": "auto|anime|...",
+           "ratio": "1:1|9:16|16:9|3:2|2:3|4:3", "seed": 可选}
+    """
+    instruction = str((req or {}).get("instruction") or "").strip()
+    if not instruction:
+        raise HTTPException(400, "指令不能为空")
+    variants = int(req.get("variants") or 1)
+    style = str(req.get("style") or "auto")
+    ratio = str(req.get("ratio") or "1:1")
+    seed = req.get("seed")
+    if seed is not None:
+        try:
+            seed = int(seed)
+        except (TypeError, ValueError):
+            seed = None
+
+    queue: asyncio.Queue = asyncio.Queue()
+
+    async def _on_progress(stage: str, payload: dict):
+        await queue.put({"type": stage, **payload})
+
+    async def _runner():
+        try:
+            await agent_generate(instruction, variants=variants, style=style,
+                                 ratio=ratio, seed=seed, on_progress=_on_progress)
+        except Exception as e:
+            await queue.put({"type": "error", "error": str(e)[:400]})
+        finally:
+            await queue.put(None)   # 结束哨兵
+
+    async def _stream():
+        task = asyncio.create_task(_runner())
+        try:
+            while True:
+                item = await queue.get()
+                if item is None:
+                    break
+                yield json.dumps(item, ensure_ascii=False) + "\n"
+        finally:
+            if not task.done():
+                task.cancel()
+
+    return StreamingResponse(_stream(), media_type="application/x-ndjson",
+                             headers={"Cache-Control": "no-cache",
+                                      "X-Accel-Buffering": "no"})
+
+
+@app.post("/api/agent-image/video")
+async def api_agent_image_video(req: dict):
+    """把某一张已生成的图转成短视频（NDJSON 流式进度）。
+
+    body: {"id": "agent_xxx_123", "prompt": "...", "ratio": "9:16",
+           "duration": 3.0, "seed": 123, "negative": "..."}
+    优先 wan5b 真视频，失败自动降级 ffmpeg 推拉。
+    """
+    record_id = str((req or {}).get("id") or "").strip()
+    if not record_id:
+        raise HTTPException(400, "缺少 id")
+    # 只接受纯文件名式的 id，避免路径穿越
+    if "/" in record_id or "\\" in record_id or ".." in record_id:
+        raise HTTPException(400, "非法 id")
+    image_path = AGENT_IMG_DIR / f"{record_id}.png"
+    if not image_path.exists():
+        raise HTTPException(404, f"找不到图片 {record_id}.png")
+
+    ratio = str(req.get("ratio") or "9:16")
+    try:
+        duration = float(req.get("duration") or 3.0)
+    except (TypeError, ValueError):
+        duration = 3.0
+    seed = req.get("seed")
+    if seed is not None:
+        try:
+            seed = int(seed)
+        except (TypeError, ValueError):
+            seed = None
+
+    queue: asyncio.Queue = asyncio.Queue()
+
+    async def _on_progress(stage: str, payload: dict):
+        await queue.put({"type": stage, **payload})
+
+    async def _runner():
+        try:
+            v = await agent_video(str(image_path), str(req.get("prompt") or ""),
+                                  ratio=ratio, duration=duration, seed=seed,
+                                  negative=str(req.get("negative") or ""),
+                                  output_name=record_id,
+                                  fast=bool(req.get("fast")), on_progress=_on_progress)
+            try:
+                agent_update_video(record_id, v)
+            except Exception:
+                pass
+            await queue.put({"type": "done", **v})
+        except Exception as e:
+            await queue.put({"type": "error", "error": str(e)[:400]})
+        finally:
+            await queue.put(None)
+
+    async def _stream():
+        task = asyncio.create_task(_runner())
+        try:
+            while True:
+                item = await queue.get()
+                if item is None:
+                    break
+                yield json.dumps(item, ensure_ascii=False) + "\n"
+        finally:
+            if not task.done():
+                task.cancel()
+
+    return StreamingResponse(_stream(), media_type="application/x-ndjson",
+                             headers={"Cache-Control": "no-cache",
+                                      "X-Accel-Buffering": "no"})
+
+
 from fastapi.staticfiles import StaticFiles
 if not any("output" in str(r.path) for r in app.routes):
     app.mount("/output", StaticFiles(directory=str(OUTPUT_DIR)), name="output_files")

@@ -1,0 +1,110 @@
+{
+  "title": "青囊异闻录·雨夜药铺",
+  "structure": {
+    "hook": "雨夜投宿的药铺掌柜，抬眼就叫出了他的姓。",
+    "beats": [
+      {
+        "id": "b1",
+        "name": "入场",
+        "purpose": "交代处境：雨夜、小镇、孤身投宿",
+        "hook": "这人为什么深夜赶路",
+        "emotion": "疲惫 → 警觉"
+      },
+      {
+        "id": "b2",
+        "name": "相识",
+        "purpose": "铺陈掌柜：和气老者，眼毒",
+        "hook": "他似乎知道些什么",
+        "emotion": "松懈 → 提防"
+      },
+      {
+        "id": "b3",
+        "name": "试探",
+        "purpose": "点破姓氏，制造信息差",
+        "hook": "你姓叶",
+        "emotion": "平静 → 骤然锐利"
+      },
+      {
+        "id": "b4",
+        "name": "反转",
+        "purpose": "抛出悬念：医图人影七分相似",
+        "hook": "这图上的人是我？",
+        "emotion": "惊疑"
+      }
+    ],
+    "爽点": [
+      {
+        "at": "b3",
+        "type": "信息差",
+        "desc": "掌柜一句话点破姓氏，主角底细被看穿"
+      },
+      {
+        "at": "b4",
+        "type": "悬念反转",
+        "desc": "墙上泛黄医图的人影与叶玄机七分相似，留钩子接下一集"
+      }
+    ]
+  },
+  "scenes": [
+    {
+      "id": 1,
+      "beat": "b1",
+      "title": "雷雨叩门",
+      "dur": 2.5,
+      "nar": "暮色四合，江南小镇的青石板路被雨水浸得发亮。",
+      "lines": "叶玄机：「有人吗？雨太大了，借宿一晚。」",
+      "camera": "push_in_then_hold",
+      "micro": "",
+      "cast": [
+        "叶玄机"
+      ],
+      "img": "[color: cool blue-gray with warm amber accent] [lighting: storm lightning cold white key light from above] [composition: wide establishing shot, three-layer depth, rain streaks] masterpiece, best quality, ultra detailed, 8k uhd, a young man in dark robe standing before an old Chinese medicine shop at night, rain-soaked blue stone street gleaming, wooden plaque reading 回春堂, warm lamplight spilling from doorway, cold blue rain, cinematic, atmospheric, photorealistic, chiaroscuro",
+      "img_end": "masterpiece, best quality, ultra detailed, the same young man in dark robe pushing the medicine shop door open, door half open, warm amber lamplight spilling from inside, rain curtain sliced by doorway light, cool blue exterior versus warm interior, cinematic, photorealistic, chiaroscuro"
+    },
+    {
+      "id": 4,
+      "beat": "b2",
+      "title": "老灯研墨",
+      "dur": 2.5,
+      "nar": "掌柜的是个花甲老者，戴一副水晶老花镜，正借着油灯捻须研墨。",
+      "lines": "掌柜：「这般时辰还赶路，年轻人，你命硬。」",
+      "camera": "push_in",
+      "micro": "",
+      "cast": [
+        "掌柜"
+      ],
+      "img": "[color: deep umber brown, dark gold, cool blue rain-light accent] [lighting: low-key single oil lamp chiaroscuro from lower front, cool blue rim] [composition: medium shot, bowed old man at counter] masterpiece, best quality, ultra detailed, an elderly Chinese shopkeeper with a crystal magnifier glasses, grinding ink at an inkstone by oil lamp, hundred-eye medicine cabinets behind, warm lamplight, photorealistic, cinematic, atmospheric",
+      "img_end": "masterpiece, best quality, ultra detailed, the elderly shopkeeper pauses grinding ink and looks up gently, crystal glasses reflecting warm oil-lamp glow, calm wise expression, hundred-eye medicine cabinets blurred behind, photorealistic, cinematic, warm chiaroscuro"
+    },
+    {
+      "id": 8,
+      "beat": "b3",
+      "title": "镜片后的刀",
+      "dur": 2.5,
+      "nar": "老者终于抬起头，镜片后的目光陡然锐利如刀。",
+      "lines": "掌柜：「你姓叶。」",
+      "camera": "push_in_fast",
+      "micro": "eyes_lift",
+      "cast": [
+        "掌柜"
+      ],
+      "img": "[color: cool blue] [lighting: storm lightning rim light] [composition: close-up portrait, eyes sharp as blade] masterpiece, best quality, ultra detailed, extreme close-up of an elderly man's face behind crystal glasses, gaze suddenly sharp and dangerous like a blade, storm light, photorealistic, cinematic, chiaroscuro, intense",
+      "img_end": "masterpiece, best quality, ultra detailed, extreme close-up of the elderly man's face snapping upward, behind crystal glasses his gaze sharp and dangerous like a blade, cold storm rim light, intense, photorealistic, cinematic, chiaroscuro"
+    },
+    {
+      "id": 12,
+      "beat": "b4",
+      "title": "七分相似",
+      "dur": 2.5,
+      "nar": "窗外惊雷炸响，照亮墙上一幅泛黄医图——图中人影竟与叶玄机有七分相似。",
+      "lines": "叶玄机：「这图上的人……怎么这样像我？」",
+      "camera": "truck_left",
+      "micro": "eyes_widen",
+      "cast": [
+        "叶玄机"
+      ],
+      "img": "[color: cold white and deep ink] [lighting: storm lightning rim light] [composition: rule of thirds mirrored silhouettes, a yellowed medical chart on wall] masterpiece, best quality, ultra detailed, lightning illuminates a yellowed anatomical chart on the wall, the figure in the chart resembles the young man seven-tenths, silhouettes, ink wash mood, cinematic, atmospheric, photorealistic",
+      "img_end": "masterpiece, best quality, ultra detailed, lightning fades, a yellowed anatomical chart on the wall, the figure in the chart overlapping with a silhouette resembling the young man, mysterious afterimage, ink wash mood, cinematic, atmospheric, photorealistic"
+    }
+  ]
+}

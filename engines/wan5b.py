@@ -24,6 +24,20 @@ COMFY_INPUT = Path(r"D:\ComfyUI\input")  # 本机 ComfyUI input 目录（原作�
 
 DEFAULT_FRAME_RATE = 48
 DEFAULT_STEPS = 30
+
+
+def _env_int(name: str, default: int) -> int:
+    """读取显存优化环境变量（scripts/vram_opt.py 的 LF_* 系列），失败即回落默认值。"""
+    import os
+    try:
+        return int(os.environ.get(name, default))
+    except Exception:
+        return default
+
+
+def _blocks() -> int:
+    """块交换块数：越大越省显存、越慢。默认 30，可用 LF_BLOCKS_SWAP 覆盖。"""
+    return _env_int("LF_BLOCKS_SWAP", 30)
 WAN_NEG = ("blurry, low quality, distorted, watermark, text, logo, jpeg artifacts, "
            "extra limbs, bad hands, deformed face, static, dark, flicker, jitter")
 
@@ -45,9 +59,14 @@ class Wan5BEngine(ComfyUIEngine):
         return "本地 Wan 2.2 TI2V-5B（轻量单模型 + 稳定采样 + 两段式 RIFE补帧+4x超分）"
 
     # ─── 第一段：采样 + 解码 + 存基础分辨率视频（不超分，避免模型驻留 OOM） ───
-    def _build_workflow(self, req, seed, frames, width, height, uploaded):
+    def _build_workflow(self, req, seed, frames, width, height, uploaded, uploaded_end=None):
+        # 说明：本地 Wan2.2-TI2V-5B 是【首帧单向】图生视频模型，VAE 与 patch-embedding
+        # 都只接受单一参考帧（首帧）。尾帧（双关键帧）条件化需要独立的 FLF2V 模型，
+        # 本机未安装。因此这里固定走「单首帧 i2v」这一已验证路径；
+        # 尾帧的视觉落点由调用方在后期用 ffmpeg 交叉淡化（end-frame landing）实现，
+        # 同样让画面「起于心想的首帧、收于预想的尾帧」。
         prompt = (req.prompt + ". locked camera, subtle micro motion, keep first frame "
-                  "composition and character identity").strip()
+                  "composition and character identity, continuous coherent motion").strip()
         wf = {
             "vae": {"class_type": "WanVideoVAELoader", "inputs": {"model_name": self.wan5b_vae, "precision": "bf16"}},
             "t5": {"class_type": "LoadWanVideoT5TextEncoder", "inputs": {
@@ -60,31 +79,32 @@ class Wan5BEngine(ComfyUIEngine):
                 "image": ["img", 0], "width": width, "height": height, "upscale_method": "lanczos",
                 "keep_proportion": "stretch", "pad_color": "0, 0, 0", "crop_position": "center",
                 "divisible_by": 16}},
-            "ienc": {"class_type": "WanVideoEncode", "inputs": {
-                "vae": ["vae", 0], "image": ["rimg", 0], "enable_vae_tiling": True,
-                "tile_x": 272, "tile_y": 272, "tile_stride_x": 128, "tile_stride_y": 128}},
-            "iem": {"class_type": "WanVideoEmptyEmbeds", "inputs": {
-                "width": width, "height": height, "num_frames": frames, "extra_latents": ["ienc", 0]}},
             "bs": {"class_type": "WanVideoBlockSwap", "inputs": {
-                "blocks_to_swap": 30, "offload_img_emb": True, "offload_txt_emb": True,
+                "blocks_to_swap": _blocks(), "offload_img_emb": True, "offload_txt_emb": True,
                 "use_non_blocking": False, "prefetch_blocks": 1}},
             "m": {"class_type": "WanVideoModelLoader", "inputs": {
                 "model": self.wan5b, "base_precision": "fp16_fast", "quantization": "disabled",
                 "load_device": "offload_device", "attention_mode": "sdpa"}},  # sdpa 为 PyTorch 原生注意力，无需 sageattention/triton
             "sbs": {"class_type": "WanVideoSetBlockSwap", "inputs": {"model": ["m", 0], "block_swap_args": ["bs", 0]}},
-            "sh": {"class_type": "WanVideoSampler", "inputs": {
-                "model": ["sbs", 0], "image_embeds": ["iem", 0], "text_embeds": ["tenc", 0],
-                "steps": DEFAULT_STEPS, "cfg": 5.0, "shift": 8.0, "seed": seed, "force_offload": True,
-                "scheduler": "flowmatch_pusa", "riflex_freq_index": 0, "start_step": 0, "end_step": -1}},
-            "dec": {"class_type": "WanVideoDecode", "inputs": {
-                "vae": ["vae", 0], "samples": ["sh", 0], "enable_vae_tiling": True,
+            "ienc": {"class_type": "WanVideoEncode", "inputs": {
+                "vae": ["vae", 0], "image": ["rimg", 0], "enable_vae_tiling": True,
                 "tile_x": 272, "tile_y": 272, "tile_stride_x": 128, "tile_stride_y": 128}},
-            "vid": {"class_type": "VHS_VideoCombine", "inputs": {
-                "images": ["dec", 0], "frame_rate": 24,
-                "filename_prefix": f"engines/{req.output_name or 'wan5b'}_base",
-                "format": "video/h264-mp4", "pix_fmt": "yuv420p", "crf": 19,
-                "save_output": True, "loop_count": 0, "pingpong": False, "save_metadata": False}},
+            "iem": {"class_type": "WanVideoEmptyEmbeds", "inputs": {
+                "width": width, "height": height, "num_frames": frames, "extra_latents": ["ienc", 0]}},
         }
+        embeds = ["iem", 0]
+        wf["sh"] = {"class_type": "WanVideoSampler", "inputs": {
+            "model": ["sbs", 0], "image_embeds": embeds, "text_embeds": ["tenc", 0],
+            "steps": DEFAULT_STEPS, "cfg": 5.0, "shift": 8.0, "seed": seed, "force_offload": True,
+            "scheduler": "flowmatch_pusa", "riflex_freq_index": 0, "start_step": 0, "end_step": -1}}
+        wf["dec"] = {"class_type": "WanVideoDecode", "inputs": {
+            "vae": ["vae", 0], "samples": ["sh", 0], "enable_vae_tiling": True,
+            "tile_x": 272, "tile_y": 272, "tile_stride_x": 128, "tile_stride_y": 128}}
+        wf["vid"] = {"class_type": "VHS_VideoCombine", "inputs": {
+            "images": ["dec", 0], "frame_rate": 24,
+            "filename_prefix": f"engines/{req.output_name or 'wan5b'}_base",
+            "format": "video/h264-mp4", "pix_fmt": "yuv420p", "crf": 19,
+            "save_output": True, "loop_count": 0, "pingpong": False, "save_metadata": False}}
         return wf
 
     # ─── 第二段：加载基础视频 → RIFE 补帧 → 2x 缩放 → 合成（不加载 umt5/5B）。
