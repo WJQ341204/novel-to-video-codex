@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>墨影流光 · 出片主链工作流图</title>
+<style>
+  :root{
+    --bg:#ffffff; --surface:#f7f6f2; --line:#e2e0d8;
+    --ink:#2c2c2a; --ink2:#5f5e5a; --ink3:#888780;
+    --blue:#185fa5; --blue-ink:#0c447c; --blue-bg:#e6f1fb;
+    --teal:#0f6e56; --teal-ink:#085041; --teal-bg:#e1f5ee;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:"PingFang SC","Microsoft YaHei","Segoe UI",system-ui,sans-serif;
+    font-size:14px;line-height:1.7}
+  .wrap{max-width:900px;margin:0 auto;padding:40px 28px 64px}
+  h1{font-size:22px;font-weight:500;margin:0 0 6px}
+  .sub{color:var(--ink2);font-size:13px;margin:0 0 32px}
+  .group{font-size:12px;font-weight:500;color:var(--ink3);
+    letter-spacing:.08em;margin:28px 0 12px;padding-left:2px}
+  .stage{display:flex;gap:16px;align-items:stretch;margin-bottom:10px}
+  .rail{flex:0 0 34px;display:flex;flex-direction:column;align-items:center;padding-top:14px}
+  .dot{flex:0 0 auto;width:34px;height:34px;border-radius:50%;
+    display:flex;align-items:center;justify-content:center;
+    font-size:13px;font-weight:500;border:1px solid}
+  .g1 .dot{background:var(--blue-bg);border-color:var(--blue);color:var(--blue-ink)}
+  .g2 .dot{background:var(--teal-bg);border-color:var(--teal);color:var(--teal-ink)}
+  .bar{width:1px;flex:1 1 auto;background:var(--line);margin:4px 0 -14px}
+  .card{flex:1 1 auto;border:1px solid var(--line);border-radius:12px;
+    padding:14px 18px;background:var(--surface);display:flex;gap:18px;flex-wrap:wrap}
+  .card .main{flex:1 1 300px;min-width:260px}
+  .card .note{flex:1 1 260px;min-width:240px;border-left:1px solid var(--line);padding-left:16px}
+  .name{font-size:15px;font-weight:500;margin:0}
+  .g1 .name{color:var(--blue-ink)} .g2 .name{color:var(--teal-ink)}
+  .impl{font-size:12px;color:var(--ink2);margin:2px 0 0}
+  .note p{margin:0;font-size:12.5px;color:var(--ink2)}
+  .note p+p{margin-top:3px}
+  code{font-family:"Cascadia Mono",Consolas,monospace;font-size:12px;
+    background:#f1efe8;border:1px solid var(--line);border-radius:4px;padding:1px 5px}
+  .out{margin-left:auto;padding:18px 0 0 50px;color:var(--ink2);font-size:13px}
+  h2{font-size:16px;font-weight:500;margin:38px 0 12px;padding-top:18px;border-top:1px solid var(--line)}
+  pre{background:var(--surface);border:1px solid var(--line);border-radius:10px;
+    padding:14px 16px;overflow:auto;font-size:12.5px;line-height:1.8;margin:0}
+  pre code{background:none;border:none;padding:0;font-size:12.5px}
+  ul{margin:8px 0 0;padding-left:20px} li{margin:4px 0}
+  table{border-collapse:collapse;width:100%;font-size:13px;margin-top:8px}
+  th,td{border-bottom:1px solid var(--line);padding:8px 10px;text-align:left}
+  th{color:var(--ink2);font-weight:500;font-size:12px}
+  .foot{margin-top:36px;color:var(--ink3);font-size:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>墨影流光 · 出片主链工作流</h1>
+  <p class="sub">小说文本 → 分镜 → 关键帧 → 图生视频 → 合成 → 配音 → 封装。入口 <code>scripts/flow.py</code>，一条命令串完七环。</p>
+
+  <div class="group">画面生成</div>
+
+  <div class="stage g1">
+    <div class="rail"><div class="dot">1</div><div class="bar"></div></div>
+    <div class="card">
+      <div class="main">
+        <p class="name">剧本层</p>
+        <p class="impl"><code>scripts/script_layer.py</code> · <code>story/青囊_剧本.json</code></p>
+      </div>
+      <div class="note">
+        <p><code>check()</code> 8 类校验零 ERROR 才进渲染</p>
+        <p>nar / lines 分离：旁白只上屏，台词才配音</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="stage g1">
+    <div class="rail"><div class="dot">2</div><div class="bar"></div></div>
+    <div class="card">
+      <div class="main">
+        <p class="name">关键帧</p>
+        <p class="impl">SDXL 首帧 + 尾帧 · <code>--cast --style --neg</code></p>
+      </div>
+      <div class="note">
+        <p><code>assets/cast.json</code> 锚定角色外貌</p>
+        <p><code>prompts/neg.md</code> 10 档负面词防脸崩</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="stage g1">
+    <div class="rail"><div class="dot">3</div><div class="bar"></div></div>
+    <div class="card">
+      <div class="main">
+        <p class="name">图生视频</p>
+        <p class="impl">Wan2.2-TI2V-5B (Q5_K_M) · ComfyUI :8188</p>
+      </div>
+      <div class="note">
+        <p>seed 由 hashlib 确定性派生，可复现</p>
+        <p>一幕 5–22 分钟；支持断点续跑</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="stage g1">
+    <div class="rail"><div class="dot">4</div><div class="bar"></div></div>
+    <div class="card">
+      <div class="main">
+        <p class="name">尾帧落点</p>
+        <p class="impl"><code>land_end_frame()</code> · xfade fade 0.8s</p>
+      </div>
+      <div class="note">
+        <p>首帧-only 模型上近似「双关键帧」收尾</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="group">后期收尾</div>
+
+  <div class="stage g2">
+    <div class="rail"><div class="dot">5</div><div class="bar"></div></div>
+    <div class="card">
+      <div class="main">
+        <p class="name">合成</p>
+        <p class="impl"><code>compose()</code> 字幕烧录 + concat copy</p>
+      </div>
+      <div class="note">
+        <p>两段式字幕：灰白=旁白 / 暖黄=台词</p>
+        <p>成片名按 <code>scene_band()</code> 号段推导，写盘前自动备份</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="stage g2">
+    <div class="rail"><div class="dot">6</div><div class="bar"></div></div>
+    <div class="card">
+      <div class="main">
+        <p class="name">配音</p>
+        <p class="impl">台词 TTS · <code>add_stepfun_tts.py</code></p>
+      </div>
+      <div class="note">
+        <p>声线三级解析：单镜覆写 &gt; 角色 &gt; 默认</p>
+        <p>旁白不朗读，只烧字幕</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="stage g2">
+    <div class="rail"><div class="dot">7</div></div>
+    <div class="card">
+      <div class="main">
+        <p class="name">封装</p>
+        <p class="impl">faststart · moov 前置自检</p>
+      </div>
+      <div class="note">
+        <p>校验 box 序列 <code>ftyp→moov→mdat</code></p>
+        <p>浏览器可边下边播</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="out">→ 成片 · <code>output/novel_demo_v2/*.mp4</code></div>
+
+  <h2>一条命令</h2>
+  <pre><code># 全链：渲染 + 配音 + faststart + 报告
+python scripts/flow.py --cast --style --neg base,face
+
+# 只补渲染部分场景（其余按参数指纹自动跳过）
+python scripts/flow.py --only 4 8 12 --cast --style --neg base,face
+
+# 渲染已完成，只跑配音 + faststart + 报告
+python scripts/flow.py --skip-render
+
+# 先看会执行什么，不动 GPU
+python scripts/flow.py --dry-run</code></pre>
+
+  <h2>断点与护栏</h2>
+  <ul>
+    <li><b>状态文件</b>：<code>output/novel_demo_v2/run_state.json</code>，每步记「参数指纹 + 产物路径」。参数一变指纹失配 → 自动重做该步；不变 → 跳过。</li>
+    <li><b>产物门槛</b>：单文件 &lt; 5000 字节视为半成品，不认（防 ffmpeg 写一半崩溃留下的坏片）。</li>
+    <li><b>自动备份</b>：<code>backup_if_exists()</code> 在出图 / 落尾帧 / 写成片覆盖前留 <code>.bak</code>。</li>
+    <li><b>中断恢复</b>：直接重跑同一条 <code>flow.py</code> 命令，从第一个未完成步骤继续。</li>
+  </ul>
+
+  <h2>链路定位</h2>
+  <table>
+    <tr><th>链路</th><th>入口</th><th>状态</th></tr>
+    <tr><td>主链</td><td><code>scripts/flow.py</code></td><td>已验证出片，六支成片由此产出</td></tr>
+    <tr><td>早期编排器</td><td><code>pipeline/orchestrator.py</code></td><td>DeepSeek 分镜 + LTX 路线，保留作参考</td></tr>
+    <tr><td>本地一键</td><td><code>scripts/local_pipeline.py</code></td><td>LTX 时代产物，仅参考</td></tr>
+    <tr><td>工业化一键</td><td><code>scripts/industrial_pipeline.py</code></td><td>质量门思想已被主链吸收</td></tr>
+  </table>
+
+  <p class="foot">墨影流光 novel-to-video-codex · 全部画面本地 8GB GPU 渲染（ComfyUI + RealVisXL + Wan2.2-TI2V-5B）</p>
+
+</div>
+</body>
+</html>

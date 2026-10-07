@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>新能力演示 · 墨影流光</title>
+<style>
+  body {
+    margin:0; padding:32px 24px 64px;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+    background:#FAFAF8; color:#1C1C1A; line-height:1.7; font-size:15px;
+  }
+  .wrap { max-width:960px; margin:0 auto; }
+  h1 { font-size:26px; font-weight:500; margin:0 0 6px; }
+  .lede { color:#5F5E5A; font-size:14px; margin:0 0 32px; }
+  .card { background:#fff; border:1px solid #E5E3DC; border-radius:12px; padding:20px; margin-bottom:26px; }
+  .card h2 { font-size:18px; font-weight:500; margin:0 0 4px; }
+  .card .meta { font-size:13px; color:#5F5E5A; margin:0 0 14px; }
+  video { width:100%; border-radius:8px; background:#000; display:block; }
+  .duo { display:flex; gap:16px; }
+  .duo > div { flex:1; min-width:0; }
+  .duo img { width:100%; border-radius:8px; display:block; border:1px solid #E5E3DC; }
+  .duo video { border:1px solid #E5E3DC; }
+  .cap { font-size:13px; margin:8px 2px 0; }
+  .cap b { font-weight:600; }
+  .old .cap b { color:#8A4B08; }
+  .new .cap b { color:#0F6E56; }
+  ul.points { margin:10px 0 0; padding-left:20px; font-size:13.5px; }
+  ul.points li { margin:4px 0; }
+  table { width:100%; border-collapse:collapse; font-size:13px; margin-top:14px; }
+  th,td { text-align:left; padding:8px 10px; border-bottom:1px solid #E5E3DC; vertical-align:top; }
+  th { color:#5F5E5A; font-weight:500; font-size:12.5px; }
+  .tag { display:inline-block; font-size:12px; padding:3px 9px; border-radius:999px;
+         background:#E1F5EE; color:#0F6E56; border:1px solid #9FE1CB; margin-right:6px; }
+  .tag.warn { background:#FAEEDA; color:#854F0B; border-color:#FAC775; }
+  .tag.mute { background:#EFEDE6; color:#5F5E5A; border-color:#D8D5CB; }
+  .dlg { color:#8A5A00; }
+  footer { margin-top:36px; padding-top:18px; border-top:1px solid #E5E3DC; font-size:12.5px; color:#888780; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>新能力演示 · 一致性升级前后对比</h1>
+  <p class="lede">演示素材全部取自 <code>demo_novel.txt</code> 里《青囊异闻录》的原文，链路为：取原文段落 → 写分镜(nar/lines) → 出关键帧 → 图生视频 → 合成 → 按角色配音。出图开关：<code>--cast --style --neg base,face</code>（角色锚定 + 全片风格 + 分档负面词）。每支成片都提供<b>带字幕</b>与<b>无字幕</b>两种版本，无字幕版撤掉所有屏显文字、只留声音与画面。</p>
+
+  <div class="card">
+    <h2>① 最新出片：《铃兰令》· 取自小说原文</h2>
+    <p class="meta">新增场景 301「铜铃落柜」+ 302「铃兰令」· 12.12 秒 · 两幕均为真实 i2v</p>
+    <video controls preload="metadata" poster="scene_301.png">
+      <source src="青囊异闻录_铃兰令_配音版.mp4" type="video/mp4">
+      你的浏览器不支持视频播放，请直接打开 mp4 文件。
+    </video>
+    <p class="cap" style="margin-top:8px"><b>配音版（含字幕）</b>：上行灰白字是<b>旁白</b>（只上屏、不朗读），下行暖黄字是<b>正在念的台词</b>。</p>
+
+    <p style="margin:18px 0 0"><span class="tag mute">你要的 · 无字幕版</span>同一支配音，画面不带任何字幕</p>
+    <video controls preload="metadata" poster="scene_301.png">
+      <source src="青囊异闻录_铃兰令_无字幕_配音版.mp4" type="video/mp4">
+      你的浏览器不支持视频播放，请直接打开 mp4 文件。
+    </video>
+    <p class="cap" style="margin-top:8px"><b>无字幕配音版</b>：适合做"干净"的成片，声音与画面完全一致，只是不显示台词字幕。</p>
+
+    <div class="duo" style="margin-top:16px">
+      <div class="new">
+        <img src="scene_301.png" alt="场景301首帧">
+        <p class="cap"><b>301 铜铃落柜</b>：手一枚青铜药铃按在柜上，单一油灯暖光，镜头缓推向铜铃。</p>
+      </div>
+      <div class="new">
+        <img src="scene_302.png" alt="场景302首帧">
+        <p class="cap"><b>302 铃兰令</b>：老者猛然抬头，水晶镜片里两簇火苗反光，目光陡然锐利。</p>
+      </div>
+    </div>
+
+    <p style="margin:16px 0 8px"><span class="tag">原文取段</span>demo_novel.txt 第 7–9 行<span class="tag" style="margin-left:6px">真实 i2v</span>无 ken_burns 降级</p>
+    <table>
+      <tr><th>幕</th><th>原文依据</th><th>台词（配音）</th><th>声线</th></tr>
+      <tr>
+        <td>301 铜铃落柜</td>
+        <td>「'抓一味世上没有的药。'叶玄机将一枚青铜药铃放在柜台上。铃声清越，油灯的火苗骤然一缩。」</td>
+        <td class="dlg">叶玄机：「抓一味世上没有的药。」</td>
+        <td>博音男声 · 压抑 · 4</td>
+      </tr>
+      <tr>
+        <td>302 铃兰令</td>
+        <td>「老者终于抬起头，镜片后的目光陡然锐利如刀：'三十年了……终于有人拿着"铃兰令"走进我这间铺子。'」</td>
+        <td class="dlg">掌柜：「三十年了……终于有人拿着铃兰令走进我这间铺子。」</td>
+        <td>儒雅男士 · 压抑 · 7</td>
+      </tr>
+    </table>
+    <ul class="points">
+      <li><b>为什么选这段</b>：这是原文里张力最强的转折，也是此前从未拍过的一段——铜铃、灯缩、抬眼三拍全部可视觉化。</li>
+      <li><b>道具入表</b>：青铜药铃已登记进 <code>assets/cast.json</code> 的 props，后续出图会自动带上锚点描述。</li>
+      <li><b>音轨实测</b>：均值 -23.7 dB / 峰值 -5.5 dB，非静音轨；两幕渲染各约 13 分钟。</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2>② 上一部：《残篇授书》· 双角色台词配音</h2>
+    <p class="meta">新增场景 201「灯下授书」+ 202「雨收出门」· 10.32 秒 · 掌柜与叶玄机各配一条声线</p>
+    <video controls preload="metadata" poster="scene_201.png">
+      <source src="青囊异闻录_残篇授书_配音版.mp4" type="video/mp4">
+      你的浏览器不支持视频播放，请直接打开 mp4 文件。
+    </video>
+    <p class="cap" style="margin-top:8px"><b>配音版（含字幕）</b>：上行灰白字是<b>旁白</b>（只上屏、不朗读），下行暖黄字是<b>正在念的台词</b>——nar/lines 分离约定在本片里同时可见、可听。</p>
+
+    <p style="margin:18px 0 0"><span class="tag mute">你要的 · 无字幕版</span>同一支配音，画面不带任何字幕</p>
+    <video controls preload="metadata" poster="scene_201.png">
+      <source src="青囊异闻录_残篇授书_无字幕_配音版.mp4" type="video/mp4">
+      你的浏览器不支持视频播放，请直接打开 mp4 文件。
+    </video>
+    <p class="cap" style="margin-top:8px"><b>无字幕配音版</b>：声音与画面对齐完整，只是撤掉了台词与旁白的屏显字幕。</p>
+
+    <div class="duo" style="margin-top:16px">
+      <div class="new">
+        <img src="scene_201.png" alt="场景201首帧">
+        <p class="cap"><b>201 灯下授书</b>：掌柜就着油灯把泛黄医书摊在柜台上，镜头缓推向书卷。</p>
+      </div>
+      <div class="new">
+        <img src="scene_202.png" alt="场景202首帧">
+        <p class="cap"><b>202 雨收出门</b>：破晓，叶玄机抱着医书跨出门槛，镜头左移跟拍。</p>
+      </div>
+    </div>
+
+    <p style="margin:16px 0 8px"><span class="tag">已配音</span>台词 → TTS 朗读，按角色分声线<span class="tag warn" style="margin-left:6px">202 降级</span>wan5b 超时，该幕为 ken_burns 推拉</p>
+    <table>
+      <tr><th>幕</th><th>旁白（只上屏）</th><th>台词（配音）</th><th>声线</th></tr>
+      <tr><td>201 灯下授书</td><td>老者从百眼药柜深处取出一卷泛黄的医书，就着灯摊在柜上。</td><td class="dlg">掌柜：「这卷青囊残篇，我守了三十年。今日交给你。」</td><td>儒雅男士 · 释然 · 4</td></tr>
+      <tr><td>202 雨收出门</td><td>雨停时天已破晓，叶玄机抱着医书跨出门槛。</td><td class="dlg">叶玄机：「掌柜的，我记下了。」</td><td>博音男声 · 平静 · 5</td></tr>
+    </table>
+    <ul class="points">
+      <li><b>声线查表</b>：角色 → 音色/情绪/强度全部来自 <code>assets/cast.json</code>，本片为 201/202 新增单镜覆写（掌柜"释然"、叶玄机"平静"），脚本里没有硬编码。</li>
+      <li><b>台词长于画面</b>：自动冻结末帧补足（tpad），保证一句台词不被画面切掉。</li>
+      <li><b>音轨实测</b>：均值 -25.6 dB / 峰值 -4.1 dB，非静音轨。</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2>③ 首帧对比：同一场景，两种出图</h2>
+    <p class="meta">场景 001「雷雨叩门」· 相同种子与底稿 prompt，仅差三层新开关</p>
+    <div class="duo">
+      <div class="old">
+        <img src="scene_001_old_frame.png" alt="旧首帧">
+        <p class="cap"><b>旧出图（无锚定）</b>：人物背影出镜——全片没有一张能锁定长相的脸；木格窗与灯笼阵更像和风布景，年代感穿帮；手无道具，医者身份无从谈起。</p>
+      </div>
+      <div class="new">
+        <img src="scene_001.png" alt="新首帧">
+        <p class="cap"><b>新出图（锚定+风格）</b>：叶玄机正脸入镜——短黑发青年，怀抱竹制药箱（cast.json 角色锚点）；冷墨色调、灯笼暖黄为唯一暖源（胡金铨风格层）；雨水挂在肩头。</p>
+      </div>
+    </div>
+    <ul class="points">
+      <li><b>角色锚定</b>：prompt 自动拼接 cast.json 的 <code>look</code> 字段——年龄、发型、服饰、随身道具与人物小传一致。</li>
+      <li><b>风格层</b>：全片统一注入 <code>style_prompt</code>，负面词同步叠加 <code>neon, cyberpunk, modern clothing</code> 拦截穿帮。</li>
+      <li><b>分档负面词</b>：face 档追加 <code>asymmetric eyes / melted face / duplicate face</code> 等，直击换脸级缺陷。</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2>④ 成片对比：同一场景的视频渲染</h2>
+    <p class="meta">同为 Wan2.2-TI2V-5B 图生视频 + 尾帧落点，左旧右新；字幕与配音在合成阶段叠加，此处为原始渲染</p>
+    <div class="duo">
+      <div class="old">
+        <video controls preload="metadata">
+          <source src="scene_001_final_before.mp4" type="video/mp4">
+          浏览器不支持视频。
+        </video>
+        <p class="cap"><b>旧渲染</b>：远景背影推门，镜头信息量低，观众三秒内记不住人物。</p>
+      </div>
+      <div class="new">
+        <video controls preload="metadata">
+          <source src="scene_001_final.mp4" type="video/mp4">
+          浏览器不支持视频。
+        </video>
+        <p class="cap"><b>新渲染</b>：正面近景+药箱，首帧即建立角色识别；运镜为 push_in（镜头缓推）。</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>⑤ 全片对比：四幕正篇《雨夜药铺》</h2>
+    <p class="meta">四幕全部用新参数重渲后合成。三种版本对照：含字幕配音版 / 无字幕配音版 / 无字幕纯画面版</p>
+
+    <p style="margin:0 0 8px"><span class="tag">含字幕 · 台词配音</span>16.03 秒 · 四幕全新渲染 · 已重配台词</p>
+    <video controls preload="metadata" poster="scene_001.png">
+      <source src="青囊异闻录_雨夜药铺_配音版.mp4" type="video/mp4">
+      你的浏览器不支持视频播放，请直接打开 mp4 文件。
+    </video>
+    <p class="cap" style="margin-top:8px"><b>配音版（含字幕）</b>（2362KB）：旁白只上字幕不配音，人物台词按角色分配声线；画面四幕全部重渲，长相 / 服饰 / 色调跨幕一致。</p>
+
+    <p style="margin:22px 0 8px"><span class="tag mute">你要的 · 无字幕配音版</span>16.03 秒 · 同一支配音 · 画面不带字幕</p>
+    <video controls preload="metadata" poster="scene_001.png">
+      <source src="青囊异闻录_雨夜药铺_无字幕_配音版.mp4" type="video/mp4">
+      你的浏览器不支持视频播放，请直接打开 mp4 文件。
+    </video>
+    <p class="cap" style="margin-top:8px"><b>无字幕配音版</b>（2468KB）：声音与上面完全一致，只是撤掉了台词和旁白的屏显字幕。</p>
+
+    <p style="margin:22px 0 8px"><span class="tag mute">无字幕 · 纯画面</span>14.33 秒 · 无音轨</p>
+    <video controls preload="metadata" poster="scene_001.png">
+      <source src="青囊异闻录_雨夜药铺_无字幕.mp4" type="video/mp4">
+      你的浏览器不支持视频播放，请直接打开 mp4 文件。
+    </video>
+    <p class="cap" style="margin-top:8px"><b>无字幕纯画面版</b>（4470KB）：同样的四幕新画面，不配音也不上字幕，可看原始画面节奏（故比配音版短约 1.7 秒）。</p>
+
+    <table>
+      <tr><th>幕</th><th>台词（人物配音）</th><th>声线</th></tr>
+      <tr><td>001 雷雨叩门</td><td class="dlg">叶玄机：「有人吗？雨太大了，借宿一晚。」</td><td>博音男声 · 平静 · 4</td></tr>
+      <tr><td>004 老灯研墨</td><td class="dlg">掌柜：「这般时辰还赶路，年轻人，你命硬。」</td><td>儒雅男士 · 平静 · 5</td></tr>
+      <tr><td>008 镜片后的刀</td><td class="dlg">掌柜：「你姓叶。」</td><td>儒雅男士 · 神秘 · 6</td></tr>
+      <tr><td>012 七分相似</td><td class="dlg">叶玄机：「这图上的人……怎么这样像我？」</td><td>博音男声 · 平静 · 5</td></tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>⑥ 工程层：这次演示同时验证的能力</h2>
+    <table>
+      <tr><th>能力</th><th>本片中的体现</th></tr>
+      <tr><td>确定性种子</td><td>hashlib 派生 seed，同参数重跑首帧逐像素一致（旧实现 hash() 每进程漂移）</td></tr>
+      <tr><td>断点续跑</td><td>run_state.json 记录 12 个步骤的参数指纹，重跑自动跳过已完成步骤</td></tr>
+      <tr><td>覆盖前自动备份</td><td>旧首帧/旧成片均存 .bak（scene_001_final_before.mp4 即本次对比的"旧"素材）</td></tr>
+      <tr><td>faststart 流式播放</td><td>moov 前置（ftyp→moov→mdat），页面内即可边下边播</td></tr>
+      <tr><td>提示词库</td><td>camera 28 档 / 微表情 22 档 / 影调 21 档 / 负面词 10 档，vid prompt 全部出自词典</td></tr>
+      <tr><td>一键工作流</td><td>scripts/flow.py：预检→渲染→配音→faststart→报告，一条命令跑完</td></tr>
+      <tr><td>成片名按号段推导</td><td><code>scene_band()</code> 分 200/300 号段；<b>只有同一 band 才合并成片名</b>，跨号段导出 <code>_选段_001-301.mp4</code>。另加写入前自动备份护栏</td></tr>
+      <tr><td>单幕显存回收</td><td>每幕开始前请求 ComfyUI 卸载上一幕驻留模型（vram_opt.free），防多幕连跑的碎片堆积</td></tr>
+      <tr><td>无字幕开关</td><td><code>--nosub</code>：合成与配音两条链均可撤掉所有屏显字幕，生成"干净"成片（本页 ①/②/⑤ 均附无字幕版）</td></tr>
+    </table>
+  </div>
+
+  <footer>
+    墨影流光 novel-to-video-codex · 演示页更新于 2026-10-07 · 全部画面本地 8GB GPU 渲染（ComfyUI + RealVisXL + Wan2.2-TI2V-5B）<br>
+    现存成片（均 moov 前置）：<br>
+    正篇《雨夜药铺》含字幕配音版 16.03s / 无字幕配音版 16.03s / 无字幕纯画面 14.33s<br>
+    《残篇授书》含字幕配音版 10.32s / 无字幕配音版 10.32s · 《铃兰令》含字幕配音版 12.12s / 无字幕配音版 12.12s<br>
+    渲染耗时：机器预热后出图约 30 秒/张，i2v 约 13 分钟/幕（冷启动首次会更慢）。
+  </footer>
+</div>
+</body>
+</html>

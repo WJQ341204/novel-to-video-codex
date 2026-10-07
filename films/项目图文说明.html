@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>墨影流光 · 项目图文说明</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: #FAFAF8; color: #1C1C1A; line-height: 1.7; font-size: 15px;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 0 24px 72px; }
+  header { padding: 64px 0 40px; border-bottom: 1px solid #E5E3DC; }
+  .eyebrow { font-size: 13px; color: #5F5E5A; letter-spacing: .08em; margin-bottom: 12px; }
+  h1 { font-size: 34px; font-weight: 500; margin: 0 0 14px; letter-spacing: -.01em; }
+  .lede { font-size: 17px; color: #444441; max-width: 720px; margin: 0; }
+  .meta-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 22px; }
+  .tag {
+    font-size: 12.5px; padding: 5px 11px; border-radius: 999px;
+    background: #EEEDFE; color: #534AB7; border: 1px solid #CECBF6;
+  }
+  .tag.t2 { background: #E1F5EE; color: #0F6E56; border-color: #9FE1CB; }
+  .tag.t3 { background: #F1EFE8; color: #5F5E5A; border-color: #D3D1C7; }
+  h2 {
+    font-size: 22px; font-weight: 500; margin: 56px 0 6px;
+    padding-top: 26px; border-top: 1px solid #E5E3DC;
+  }
+  h2:first-of-type { border-top: none; }
+  .sub { color: #5F5E5A; font-size: 14px; margin: 0 0 24px; }
+  h3 { font-size: 16px; font-weight: 500; margin: 32px 0 10px; }
+  p { margin: 0 0 16px; }
+  .card {
+    background: #fff; border: 1px solid #E5E3DC; border-radius: 12px;
+    padding: 22px; margin: 20px 0;
+  }
+  .steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px,1fr)); gap: 12px; margin: 20px 0; }
+  .step { background:#fff; border:1px solid #E5E3DC; border-radius:10px; padding:16px; }
+  .step .n { font-size:12px; color:#534AB7; font-weight:500; letter-spacing:.06em; }
+  .step .t { font-size:15px; font-weight:500; margin:6px 0 4px; }
+  .step .d { font-size:13px; color:#5F5E5A; line-height:1.6; }
+  .work-head { display:flex; align-items:baseline; gap:12px; flex-wrap:wrap; margin: 32px 0 4px; }
+  .work-title { font-size:20px; font-weight:500; margin:0; }
+  .dur { font-size:13px; color:#5F5E5A; }
+  video { width:100%; border-radius:10px; background:#000; display:block; margin:14px 0 8px; }
+  .scene { background:#fff; border:1px solid #E5E3DC; border-radius:12px; padding:18px; margin:16px 0; }
+  .scene-h { font-size:14px; font-weight:500; margin-bottom:4px; }
+  .scene-h .id { color:#534AB7; margin-right:8px; }
+  .nar { font-size:13.5px; color:#444441; margin:0 0 14px; padding-left:11px; border-left:2px solid #CECBF6; }
+  .pair { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  figure { margin:0; }
+  figure img { width:100%; border-radius:8px; display:block; border:1px solid #E5E3DC; }
+  figcaption { font-size:12px; color:#5F5E5A; margin-top:6px; text-align:center; }
+  table { width:100%; border-collapse:collapse; font-size:13.5px; margin:14px 0; background:#fff; }
+  th, td { text-align:left; padding:10px 12px; border-bottom:1px solid #E5E3DC; vertical-align:top; }
+  th { color:#5F5E5A; font-weight:500; font-size:12.5px; }
+  code {
+    font-family: ui-monospace, "SF Mono", Consolas, monospace; font-size:12.5px;
+    background:#F1EFE8; padding:2px 6px; border-radius:4px;
+  }
+  pre {
+    background:#fff; border:1px solid #E5E3DC; border-radius:8px; padding:14px 16px;
+    overflow-x:auto; font-size:12.5px; line-height:1.6; margin:12px 0;
+    font-family: ui-monospace, "SF Mono", Consolas, monospace;
+  }
+  .note { background:#FAEEDA; border:1px solid #FAC775; border-radius:10px; padding:14px 16px; font-size:13.5px; margin:16px 0; }
+  .note b { color:#854F0B; font-weight:500; }
+  ul { margin:0 0 16px; padding-left:20px; }
+  li { margin-bottom:7px; }
+  footer { margin-top:56px; padding-top:22px; border-top:1px solid #E5E3DC; font-size:12.5px; color:#888780; }
+  @media (max-width: 640px) { .pair { grid-template-columns:1fr; } h1 { font-size:27px; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="eyebrow">NOVEL-TO-VIDEO-CODEX</div>
+  <h1>墨影流光</h1>
+  <p class="lede">一条把小说文本自动变成带配音短剧的端到端管线：输入一段网文，输出分镜关键帧、由图生视频驱动的运镜、中文字幕与 AI 旁白，最终合成为一支完整短片。</p>
+  <div class="meta-row">
+    <span class="tag">RealVisXL V4.0 出图</span>
+    <span class="tag">Wan2.2-TI2V-5B 图生视频</span>
+    <span class="tag t2">阶跃星辰 StepFun 配音</span>
+    <span class="tag t3">1280×704 · 24fps</span>
+  </div>
+</header>
+
+<h2>一、管线总览</h2>
+<p class="sub">七个环节全部本地跑通，每一步都对应仓库里的具体代码。</p>
+
+<div class="steps">
+  <div class="step"><div class="n">STEP 01</div><div class="t">小说 → 分镜脚本</div><div class="d">按剧情把文本拆成若干幕，每幕定下画面提示词、视频运动描述、时长与随机种子。</div></div>
+  <div class="step"><div class="n">STEP 02</div><div class="t">关键帧出图</div><div class="d">txt2img 用 RealVisXL 为每幕同时生成<b>首帧</b>与<b>尾帧</b>两张关键帧。</div></div>
+  <div class="step"><div class="n">STEP 03</div><div class="t">图生视频 i2v</div><div class="d">以首帧为条件，Wan2.2-TI2V-5B 生成约 2 秒真实运镜，画面由剧情提示词决定。</div></div>
+  <div class="step"><div class="n">STEP 04</div><div class="t">尾帧落地</div><div class="d">ffmpeg xfade 约 0.8s 把运动片段尾部淡入尾帧，做到「起于首帧、收于尾帧」。</div></div>
+  <div class="step"><div class="n">STEP 05</div><div class="t">字幕与片头卡</div><div class="d">PIL 渲染中文旁白字幕（绕开 Windows 下 ffmpeg drawtext 的冒号解析坑）。</div></div>
+  <div class="step"><div class="n">STEP 06</div><div class="t">StepFun 配音</div><div class="d">按场景情绪调用阶跃星辰生成旁白 MP3，带情绪 instruction 与磁盘缓存。</div></div>
+  <div class="step"><div class="n">STEP 07</div><div class="t">成片合成</div><div class="d">冻结末帧对齐语音时长（保住原始运镜节奏），拼接各幕输出带音轨成片。</div></div>
+</div>
+
+<h2>二、关键取舍：双关键帧是怎么实现的</h2>
+<p class="sub">这是整个项目最核心的一个工程决策。</p>
+
+<div class="card">
+  <p>需求是「先出关键帧再图生视频」，理想形态是<b>首帧 + 尾帧双关键帧</b>共同约束一段运动。但本地的 Wan2.2-TI2V-5B 是<b>首帧单向</b>模型——它只能以第一张图做条件，无法条件化尾帧（真正的双关键帧需要独立的 FLF2V 模型，本机未安装）。</p>
+  <p style="margin-bottom:0">因此采用组合方案：<b>首帧驱动真实运动</b> + <b>ffmpeg 淡入尾帧落地</b>。既拿到图生视频的真实动态，又保证每一幕精确收在预想构图上。</p>
+</div>
+
+<pre>首帧 PNG ──▶ Wan2.2-TI2V-5B i2v ──▶ 真实运动片段 ──▶ ffmpeg xfade 0.8s ──▶ 落在尾帧 PNG
+                                                          ▲
+                                                     尾帧 PNG（作为收束目标）</pre>
+
+<div class="note">
+  <b>另一个高频坑：ComfyUI 队列争用。</b> 在 <code>--lowvram</code> 机器上，如果出图或 i2v 任务被排在别的 GPU 任务之后，600s 内轮不到就会超时；更糟的是客户端放弃后，ComfyUI 里的任务<b>并不会真的死掉</b>，会持续占满 GPU 让后续所有渲染静默降级成静态推拉。解法是：提交前先等队列清空，发现孤儿任务立刻 <code>POST /interrupt</code>。
+</div>
+
+<h2>三、作品一：青囊异闻录 · 雨夜药铺</h2>
+<p class="sub">四幕，全部真实图生视频 + 尾帧落地 + StepFun 儒雅男声旁白。</p>
+
+<video controls poster="scene_001.png">
+  <source src="青囊异闻录_雨夜药铺_配音版.mp4" type="video/mp4">
+</video>
+<p style="font-size:13px;color:#5F5E5A;margin-bottom:0">成片 31.25 秒 · h264 + aac 44.1kHz · 四幕均为真实 i2v 运镜</p>
+
+<div class="scene">
+  <div class="scene-h"><span class="id">001</span>雷雨叩门</div>
+  <p class="nar">暮色四合，江南小镇的青石板路被雨水浸得发亮。</p>
+  <div class="pair">
+    <figure><img src="scene_001.png" alt="场景001 首帧"><figcaption>首帧 · 雷夜叩门</figcaption></figure>
+    <figure><img src="scene_001_end.png" alt="场景001 尾帧"><figcaption>尾帧 · 推门而入</figcaption></figure>
+  </div>
+</div>
+
+<div class="scene">
+  <div class="scene-h"><span class="id">004</span>老灯研墨</div>
+  <p class="nar">掌柜的是个花甲老者，戴一副水晶老花镜，正借着油灯捻须研墨。</p>
+  <div class="pair">
+    <figure><img src="scene_004.png" alt="场景004 首帧"><figcaption>首帧 · 灯下研墨</figcaption></figure>
+    <figure><img src="scene_004_end.png" alt="场景004 尾帧"><figcaption>尾帧 · 抬头望来</figcaption></figure>
+  </div>
+</div>
+
+<div class="scene">
+  <div class="scene-h"><span class="id">008</span>镜片后的刀</div>
+  <p class="nar">老者终于抬起头，镜片后的目光陡然锐利如刀。</p>
+  <div class="pair">
+    <figure><img src="scene_008.png" alt="场景008 首帧"><figcaption>首帧 · 垂目静坐</figcaption></figure>
+    <figure><img src="scene_008_end.png" alt="场景008 尾帧"><figcaption>尾帧 · 目光如刀</figcaption></figure>
+  </div>
+</div>
+
+<div class="scene">
+  <div class="scene-h"><span class="id">012</span>七分相似</div>
+  <p class="nar">窗外惊雷炸响，照亮墙上一幅泛黄医图——图中人影竟与叶玄机有七分相似。</p>
+  <div class="pair">
+    <figure><img src="scene_012.png" alt="场景012 首帧"><figcaption>首帧 · 雷光初照</figcaption></figure>
+    <figure><img src="scene_012_end.png" alt="场景012 尾帧"><figcaption>尾帧 · 图上残影</figcaption></figure>
+  </div>
+</div>
+
+<h2>四、作品二：司马谷岩之战</h2>
+<p class="sub">新素材《白璃 / 叶修 / 羲和 vs 司马谷岩》打斗片段，两幕，男声热血旁白。</p>
+
+<video controls poster="scene_101.png">
+  <source src="新小说演示_司马谷岩之战_配音版.mp4" type="video/mp4">
+</video>
+<p style="font-size:13px;color:#5F5E5A;margin-bottom:0">成片 19.13 秒 · h264 + aac 44.1kHz · 101 紧张 / 102 热血</p>
+
+<div class="scene">
+  <div class="scene-h"><span class="id">101</span>逼前戏言</div>
+  <p class="nar">司马谷岩逼近羲和，口出轻薄之言；叶修暗道：这家伙，真是找死！</p>
+  <div class="pair">
+    <figure><img src="scene_101.png" alt="场景101 首帧"><figcaption>首帧 · 持刀逼近</figcaption></figure>
+    <figure><img src="scene_101_end.png" alt="场景101 尾帧"><figcaption>尾帧 · 抬掌护持</figcaption></figure>
+  </div>
+</div>
+
+<div class="scene">
+  <div class="scene-h"><span class="id">102</span>一掌崩飞</div>
+  <p class="nar">羲和出手如电——一掌拍出！砰！司马谷岩如离弦之箭飞出十来米，一排大树被撞断。</p>
+  <div class="pair">
+    <figure><img src="scene_102.png" alt="场景102 首帧"><figcaption>首帧 · 一掌拍出</figcaption></figure>
+    <figure><img src="scene_102_end.png" alt="场景102 尾帧"><figcaption>尾帧 · 撞断树丛</figcaption></figure>
+  </div>
+</div>
+
+<h2>五、踩过的坑与解法</h2>
+<p class="sub">这些是可复用的经验，遇到同类环境能直接省下数小时。</p>
+
+<table>
+  <tr><th>问题</th><th>根因</th><th>解法</th></tr>
+  <tr>
+    <td>i2v 全部静默降级成静态推拉</td>
+    <td>超时后客户端放弃，但 ComfyUI 里的任务假死不退，独占 GPU 达 99%</td>
+    <td><code>POST /interrupt</code> 清孤儿任务；每批跑前确认队列为空</td>
+  </tr>
+  <tr>
+    <td>双关键帧 VAE 报「expected 12 channels got 3」</td>
+    <td>本地 Wan2.2-TI2V-5B 是首帧单向模型，无 FLF2V 能力</td>
+    <td>改用单首帧 i2v + ffmpeg xfade 尾帧落地</td>
+  </tr>
+  <tr>
+    <td>出图阶段莫名超时</td>
+    <td>任务被排在别的 GPU 任务之后，600s 内未获调度</td>
+    <td>提交前先等待队列清空再提交</td>
+  </tr>
+  <tr>
+    <td>中文字幕叠加失败</td>
+    <td>Windows 下 ffmpeg <code>drawtext</code> 的 <code>fontfile=C:/...</code> 冒号无法解析</td>
+    <td>改用 PIL 渲染透明字幕 PNG 再叠加</td>
+  </tr>
+  <tr>
+    <td>配音后画面节奏被拉伸</td>
+    <td>旁白时长大于视频，直接拉长会破坏真实运镜</td>
+    <td><code>tpad=stop_mode=clone</code> 冻结末帧补足时长</td>
+  </tr>
+</table>
+
+<h2>六、如何运行</h2>
+<p class="sub">前置条件：本机 ComfyUI 运行在 8188，模型 RealVisXL V4.0 与 Wan2.2-TI2V-5B 已就位，<code>.env</code> 已配置 StepFun API Key。</p>
+
+<pre># 生成《青囊异闻录》（出图 → i2v → 落地 → 字幕 → 合成）
+python scripts/novel_video.py
+
+# 只跑指定场景 / 只做合成
+python scripts/novel_video.py --only 1 4
+python scripts/novel_video.py --compose
+
+# 为成片接入阶跃星辰配音
+python scripts/add_stepfun_tts.py qingnang
+python scripts/add_stepfun_tts.py fight</pre>
+
+<table>
+  <tr><th>文件</th><th>作用</th></tr>
+  <tr><td><code>scripts/novel_video.py</code></td><td>直驱主管线脚本，含分镜配置与全部处理函数</td></tr>
+  <tr><td><code>scripts/novel_fight_demo.py</code></td><td>新素材打斗片段的分镜与生成</td></tr>
+  <tr><td><code>scripts/add_stepfun_tts.py</code></td><td>阶跃星辰配音与音视频合成</td></tr>
+  <tr><td><code>scripts/complete_fight101.py</code></td><td>带队列保护的补渲与二次合成</td></tr>
+  <tr><td><code>engines/wan5b.py</code></td><td>Wan2.2 图生视频引擎，负责工作流组装</td></tr>
+  <tr><td><code>output/novel_demo_v2/</code></td><td>全部产物：关键帧 PNG、各幕成片、最终配音版</td></tr>
+</table>
+
+<footer>
+  墨影流光 novel-to-video-codex · 管线七环节已全部跑通 · 本文档配图均取自项目真实产出
+</footer>
+
+</div>
+</body>
+</html>

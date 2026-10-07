@@ -104,7 +104,13 @@ async def gen_dialogue(text: str, out: Path, voice: str, mood: str, intensity: i
         mood=mood, intensity=intensity, is_narration=False)
 
 
-async def build(target: str):
+async def build(target: str, nosub: bool = False, reuse_audio: bool = False):
+    """配音成片。
+
+    nosub=True       → 不烧屏显字幕，只出干净画面 + 配音（成片名带「_无字幕」）
+    reuse_audio=True → 复用已存在的 _dlg_<镜号>.mp3，不再调 TTS 接口
+                       （重出无字幕版时用：台词没变，没必要再合成一遍）
+    """
     m = MANIFESTS[target]
     scenes = m["scenes"]
     if scenes is None:   # fight: 延迟导入，避免循环
@@ -124,26 +130,34 @@ async def build(target: str):
             print(f"  [跳过] 场景{sid} 缺成片 {final_clip.name}（先去渲染）", flush=True)
             continue
         # 屏显：背景介绍(nar) + 角色台词(lines) 都要上屏（台词被念出来，画面上看不见就很怪）
-        bg = nv.scene_subtitle(s)
         speaker, line = split_line(s.get("lines", ""))  # 角色台词：朗读对象
 
-        # 1) 叠屏显文字
-        subbed = nv.OUT / f"_voicesub_{sid:03d}.mp4"
-        src_clip = nv.overlay_subtitle(final_clip, bg, subbed)
+        # 1) 叠屏显文字（nosub 时跳过，直接用原始场景片）
+        if nosub:
+            src_clip = final_clip
+        else:
+            bg = nv.scene_subtitle(s)
+            subbed = nv.OUT / f"_voicesub_{sid:03d}.mp4"
+            src_clip = nv.overlay_subtitle(final_clip, bg, subbed)
+            print(f"  [场景{sid}] 屏显(背景+台词): {bg.replace(chr(10), ' / ')}", flush=True)
         out_clip = nv.OUT / f"scene_{sid:03d}_voiced.mp4"
-        print(f"  [场景{sid}] 屏显(背景+台词): {bg.replace(chr(10), ' / ')}", flush=True)
 
         # 2) 有台词才配音；台词念文字本身（不带角色名与引号）
         dur = None
         if line:
-            v = castlib.voice_for(speaker, sid)     # 查资产表：角色 → 音色/情绪/强度
-            voice, mood, intensity = v["voice"], v["mood"], v["intensity"]
             mp3 = nv.OUT / f"_dlg_{sid:03d}.mp3"
-            print(f"       └ 配音(台词) [{v['speaker'] or '角色'} · {voice} · {mood} · 强度{intensity}]: {line}", flush=True)
-            try:
-                dur = await gen_dialogue(line, mp3, voice, mood, intensity)
-            except Exception as e:
-                print(f"       [TTS] 台词合成失败: {str(e)[:160]}（该幕转静音）", flush=True)
+            cached = reuse_audio and mp3.exists() and mp3.stat().st_size > 5000
+            if cached:
+                dur = nv.get_duration(mp3)
+                print(f"       └ 复用已合成台词音频 {mp3.name} ({dur:.2f}s)", flush=True)
+            else:
+                v = castlib.voice_for(speaker, sid)     # 查资产表：角色 → 音色/情绪/强度
+                voice, mood, intensity = v["voice"], v["mood"], v["intensity"]
+                print(f"       └ 配音(台词) [{v['speaker'] or '角色'} · {voice} · {mood} · 强度{intensity}]: {line}", flush=True)
+                try:
+                    dur = await gen_dialogue(line, mp3, voice, mood, intensity)
+                except Exception as e:
+                    print(f"       [TTS] 台词合成失败: {str(e)[:160]}（该幕转静音）", flush=True)
             if dur is not None and mux_one(src_clip, mp3, out_clip):
                 voiced.append(out_clip)
                 print(f"       [混音] 场景{sid} 台词配音版 -> {out_clip.name}", flush=True)
@@ -164,7 +178,11 @@ async def build(target: str):
     inputs = [str(title_w)] + [str(p) for p in voiced]
     fc = "".join(f"[{i}:v][{i}:a]" for i in range(len(inputs)))
     filt = f"{fc}concat=n={len(inputs)}:v=1:a=1[outv][outa]"
-    final = nv.OUT / m["final"]
+    fname = m["final"]
+    if nosub:
+        # 与带字幕版严格区分文件名，绝不覆盖
+        fname = fname.replace("_配音版.mp4", "_无字幕_配音版.mp4")
+    final = nv.OUT / fname
     ok = nv.run_ff([
         nv.FF, "-y", *sum((["-i", p] for p in inputs), []),
         "-filter_complex", filt, "-map", "[outv]", "-map", "[outa]",
@@ -178,11 +196,19 @@ async def build(target: str):
 
 
 def main_cli():
-    target = (sys.argv[1] if len(sys.argv) > 1 else "qingnang")
+    argv = sys.argv[1:]
+    flags = {a for a in argv if a.startswith("--")}
+    pos = [a for a in argv if not a.startswith("--")]
+    target = pos[0] if pos else "qingnang"
     if target not in MANIFESTS:
-        print("用法: add_stepfun_tts.py [qingnang|shoushu|linglan|fight]"); raise SystemExit(1)
+        print("用法: add_stepfun_tts.py [qingnang|shoushu|linglan|fight] [--nosub] [--reuse-audio]")
+        print("      --nosub        不烧屏显字幕（成片名带「_无字幕」）")
+        print("      --reuse-audio  复用已有 _dlg_<镜号>.mp3，不重复调 TTS")
+        raise SystemExit(1)
     print("[info] 引擎:", main._select_tts_engine(), "端点:", main._get_stepfun_tts_url())
-    res = asyncio.run(build(target))
+    res = asyncio.run(build(target,
+                            nosub="--nosub" in flags,
+                            reuse_audio="--reuse-audio" in flags))
     if res:
         print("[done]", res)
     else:

@@ -426,7 +426,13 @@ def compose_name(scene_ids) -> str:
     return "青囊异闻录_选段_" + "-".join(f"{i:03d}" for i in ids) + ".mp4"
 
 
-def compose(scene_ids, final_name: str = ""):
+def compose(scene_ids, final_name: str = "", nosub: bool = False):
+    """合成成片：标题卡 + 各场景，字幕烧录可选。
+
+    nosub=True → 不烧字幕，直接拼原始场景片（干净画面版）。
+    成片名默认由 compose_name() 按号段推导；nosub 时自动带「_无字幕」后缀，
+    绝不与带字幕版同名，避免覆盖。
+    """
     ids = sorted(scene_ids)
     bands = {scene_band(i) for i in ids}
     band = bands.pop() if len(bands) == 1 else ""
@@ -437,6 +443,9 @@ def compose(scene_ids, final_name: str = ""):
         vid = OUT / f"scene_{sid:03d}_final.mp4"
         if not vid.exists():
             print(f"  [合成] 跳过缺失场景{sid}: {vid.name}", flush=True)
+            continue
+        if nosub:
+            parts.append(str(vid))
             continue
         sub_png = make_subtitle_png(scene_subtitle(next(s for s in SCENES if s["id"] == sid)))
         # 叠加字幕
@@ -457,7 +466,11 @@ def compose(scene_ids, final_name: str = ""):
     with open(listf, "w", encoding="utf-8") as f:
         for p in [str(title)] + parts:
             f.write(f"file '{str(p).replace(chr(92), chr(47))}'\n")
-    final = OUT / (final_name or compose_name(scene_ids))
+    name = final_name
+    if not name:
+        base = compose_name(scene_ids)
+        name = base[:-4] + "_无字幕.mp4" if (nosub and base.endswith(".mp4")) else base
+    final = OUT / name
     # 护栏：绝不静默覆盖已有成片——目标文件已存在且不在本次备份范围内时先留 .bak
     if final.exists() and final.stat().st_size > 5000:
         backup_if_exists(final)
@@ -476,6 +489,8 @@ def main():
     ap.add_argument("--compose", action="store_true")
     ap.add_argument("--final", default="",
                     help="覆盖成片文件名（默认按镜号段推导，见 compose_name）")
+    ap.add_argument("--nosub", action="store_true",
+                    help="合成时不烧字幕（干净画面版，成片名自动带「_无字幕」）")
     ap.add_argument("--cast", action="store_true",
                     help="出图时追加 assets/cast.json 的角色外貌描述（一致性文本层锁定）")
     ap.add_argument("--style", action="store_true",
@@ -489,7 +504,7 @@ def main():
 
     sel = [s for s in SCENES if (not args.only or s["id"] in args.only)]
     if args.compose:
-        compose([s["id"] for s in sel], args.final)
+        compose([s["id"] for s in sel], args.final, nosub=args.nosub)
         return
 
     def _sig(**kw):
@@ -583,7 +598,7 @@ def main():
 
     # 合成
     print("=== 合成成片 ===", flush=True)
-    compose([s["id"] for s in sel], args.final)
+    compose([s["id"] for s in sel], args.final, nosub=args.nosub)
 
 
 if __name__ == "__main__":
