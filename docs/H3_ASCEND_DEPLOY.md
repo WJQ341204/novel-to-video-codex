@@ -116,6 +116,29 @@ curl -s http://127.0.0.1:9098/v1/videos -H 'Content-Type: application/json' -d '
 
 ---
 
+## 4b. 未来接口字段约定（墨影流光侧已接）
+
+H3 是 omni 模型（T2VA / FL2VA / Ref2VA 的 "A" = Audio）。以下接口在 `engines/h3_ascend.py` 已接好，
+真机上线时按你服务器实际 schema 校准字段名即可：
+
+| 请求字段 | 触发条件 | 说明 |
+|---|---|---|
+| `task_type` | 自动推断，或 `GenerateRequest.task_type` 显式指定 | `t2va`（无首帧无参考图）/ `fl2va`（首帧图存在）/ `ref2va`（存在参考图）；显式值优先 |
+| `first_frame` / `last_frame` | I2V | base64 data URI 内联（已有） |
+| `reference_images` | `ref2va` 且有存在的参考图 | 角色一致性，base64 data URI 列表内联 |
+| `generate_audio` | `GenerateRequest.generate_audio=True` | 请求 H3 **原生同步音频**（替代外部 TTS 的一步） |
+| `audio_prompt` | `generate_audio=True` 时 | 原生音频的对白/音效提示词 |
+
+**响应解析（宽松兼容，待真机校准）**：
+- 视频：`data[].video` / `video_url` / `video` / `url`（支持 URL 或 data URI）
+- 音频：`data[].audio` / `audio_url` / `audio_base64`（支持 `{"url":...}` / `{"b64":...}` / 裸字符串）
+- 异步任务：提交后返回 `id` / `task_id` → `GET /v1/videos/{task_id}` 轮询至 `succeeded`
+
+**产物落盘**：视频 `<output_name>.mp4`；原生音频 `<output_name>_h3audio.<ext>`（扩展名按 data URI mime 推断），
+并通过 `ClipResult.audio_path` 暴露给下游（默认 `generate_audio=False`，与既有「视频 + 外部 TTS」管线解耦）。
+
+---
+
 ## 5. 接入 墨影流光
 
 服务起来后，在**跑 墨影流光 的机器**上设置环境变量，并把路由切到本地 h3：

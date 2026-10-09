@@ -29,6 +29,10 @@ class GenerateRequest:
     task_id: Optional[str] = None         # 断点恢复用
     max_cost_usd: Optional[float] = None  # 单段预算上限
     timeout_seconds: float = 900.0
+    # ── H3 / 未来 omni 引擎专用（可选，不影响既有引擎）──
+    task_type: Optional[str] = None   # 显式指定 t2va/fl2va/ref2va；None 时由引擎按首帧/参考图推断
+    generate_audio: bool = False        # H3 omni：是否生成原生同步音频
+    audio_prompt: str = ""              # 原生音频的对白/音效提示词（H3 专用）
 
 
 @dataclass
@@ -42,6 +46,7 @@ class ClipResult:
     model: str = ""
     quality_report: Optional[dict] = None
     downgraded_from: Optional[str] = None   # 若因失败降级，记录原引擎
+    audio_path: Optional[Path] = None       # 未来 omni 引擎（如 H3）原生音频输出；其余引擎恒为 None
 
 
 class EngineError(Exception):
