@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>墨影流光 · 演示视频</title>
+<style>
+  :root{ --bg:#0d1117; --panel:#161b22; --line:#30363d; --gold:#d9a441; --text:#e6edf3; --dim:#8b949e; }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);
+       font-family:"Microsoft YaHei","PingFang SC",system-ui,sans-serif;padding:28px 20px 60px}
+  .wrap{max-width:980px;margin:0 auto}
+  h1{margin:0 0 6px;font-size:26px;letter-spacing:1px}
+  h1 span{color:var(--gold)}
+  .sub{margin:0 0 22px;color:var(--dim);font-size:13px;line-height:1.7}
+  video{width:100%;background:#000;border:1px solid var(--line);border-radius:10px;
+        display:block;aspect-ratio:16/9}
+  .meta{margin:12px 0 26px;padding:12px 16px;background:var(--panel);border:1px solid var(--line);
+        border-radius:8px;font-size:14px}
+  .meta b{color:var(--gold)}
+  .meta i{color:var(--dim);font-style:normal;font-size:12px;margin-left:8px}
+  .group{margin-bottom:18px}
+  .gtitle{font-size:13px;color:var(--dim);margin-bottom:8px;letter-spacing:1px}
+  .btns{display:flex;flex-wrap:wrap;gap:8px}
+  button{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:6px;
+         padding:8px 14px;font-size:13px;cursor:pointer;transition:.15s;font-family:inherit}
+  button:hover{border-color:var(--gold);color:var(--gold)}
+  button.on{background:var(--gold);color:#1b1b1b;border-color:var(--gold);font-weight:600}
+  .note{margin-top:26px;color:var(--dim);font-size:12px;line-height:1.8;
+        border-top:1px solid var(--line);padding-top:14px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>墨影流光 · <span>演示视频</span></h1>
+  <p class="sub">
+    全本地小说转视频管线出品 · SDXL 关键帧 → Wan2.2-TI2V-5B 生视频 → 阶跃星辰 TTS 配音<br>
+    8GB 单卡显存可跑，渲染 + 配音全链路离线
+  </p>
+
+  <video id="player" controls preload="metadata" poster="scene_301.png"></video>
+
+  <div class="meta" id="meta"></div>
+
+  <div id="groups"></div>
+
+  <div class="note">
+    · 「配音版」= 含 TTS 角色配音音轨；「纯画面(无音轨)」= 有画面无声音，用于对比画面本身<br>
+    · 无字幕版由 <code>--nosub</code> 生成，画面不烧录任何文字；带字幕版为两段式（上行旁白 / 下行台词）
+  </div>
+</div>
+
+<script>
+const FILMS = [
+  { name:'《铃兰令》', poster:'scene_301.png', scenes:'301 / 302',
+    vars:[
+      {f:'青囊异闻录_铃兰令_配音版.mp4',           t:'带字幕 · 配音版'},
+      {f:'青囊异闻录_铃兰令_无字幕_配音版.mp4',     t:'无字幕 · 配音版'},
+      {f:'青囊异闻录_铃兰令.mp4',                   t:'带字幕 · 纯画面(无音轨)'},
+      {f:'青囊异闻录_铃兰令_无字幕.mp4',            t:'无字幕 · 纯画面(无音轨)'}
+    ]},
+  { name:'《残篇授书》', poster:'scene_201.png', scenes:'201 / 202',
+    vars:[
+      {f:'青囊异闻录_残篇授书_配音版.mp4',          t:'带字幕 · 配音版'},
+      {f:'青囊异闻录_残篇授书_无字幕_配音版.mp4',   t:'无字幕 · 配音版'},
+      {f:'青囊异闻录_残篇授书.mp4',                 t:'带字幕 · 纯画面(无音轨)'},
+      {f:'青囊异闻录_残篇授书_无字幕.mp4',          t:'无字幕 · 纯画面(无音轨)'}
+    ]},
+  { name:'《雨夜药铺》', poster:'scene_001.png', scenes:'1 / 4 / 8 / 12',
+    vars:[
+      {f:'青囊异闻录_雨夜药铺_配音版.mp4',          t:'带字幕 · 配音版'},
+      {f:'青囊异闻录_雨夜药铺_无字幕_配音版.mp4',   t:'无字幕 · 配音版'},
+      {f:'青囊异闻录_雨夜药铺.mp4',                 t:'带字幕 · 纯画面(无音轨)'},
+      {f:'青囊异闻录_雨夜药铺_无字幕.mp4',          t:'无字幕 · 纯画面(无音轨)'}
+    ]}
+];
+
+const player = document.getElementById('player');
+const meta   = document.getElementById('meta');
+const groups = document.getElementById('groups');
+
+function play(film, v, btn){
+  player.poster = film.poster;
+  player.src = v.f;
+  player.load();
+  player.play().catch(()=>{});
+  meta.innerHTML = `<b>${film.name}</b> — ${v.t}<i>镜号 ${film.scenes}</i>`;
+  document.querySelectorAll('button').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
+}
+
+FILMS.forEach((film, fi) => {
+  const g = document.createElement('div');
+  g.className = 'group';
+  g.innerHTML = `<div class="gtitle">${film.name}　镜号 ${film.scenes}</div>`;
+  const row = document.createElement('div');
+  row.className = 'btns';
+  film.vars.forEach(v => {
+    const b = document.createElement('button');
+    b.textContent = v.t;
+    b.onclick = () => play(film, v, b);
+    row.appendChild(b);
+  });
+  g.appendChild(row);
+  groups.appendChild(g);
+});
+
+// 默认：铃兰令 · 无字幕配音版（最新一版，双角色配音）
+play(FILMS[0], FILMS[0].vars[1], groups.querySelectorAll('.group')[0].querySelectorAll('button')[1]);
+</script>
+</body>
+</html>

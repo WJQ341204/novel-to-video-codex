@@ -66,6 +66,9 @@ class EngineRouter:
                 elif self.local_kind == "wan5b":
                     from .wan5b import Wan5BEngine
                     self._local = Wan5BEngine()
+                elif self.local_kind == "h3_ascend":
+                    from .h3_ascend import H3AscendEngine
+                    self._local = H3AscendEngine()
                 else:
                     from .local import ComfyUIEngine
                     self._local = ComfyUIEngine()
@@ -94,8 +97,18 @@ class EngineRouter:
             return local
 
     def status_report(self) -> dict:
+        local_status = {"status": "P1 未接入"}
+        if self.local_kind == "h3_ascend":
+            try:
+                from .h3_ascend import H3AscendEngine
+                local_status = {
+                    "status": "ready" if H3AscendEngine().is_available() else "未配置 H3_ASCEND_URL",
+                    "engine": "h3_ascend (self-hosted Ascend 910B)",
+                }
+            except Exception as exc:  # noqa: BLE001
+                local_status = {"status": f"error: {exc}"}
         return {
             "video_mode": self.video_mode,
             "cloud": self.cloud.status_report(),
-            "local_comfyui": {"status": "P1 未接入"},
+            "local": local_status,
         }
