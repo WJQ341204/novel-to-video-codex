@@ -20,6 +20,15 @@ venv/
 # ── Node.js ──
 node_modules/
 web/node_modules/
+nuxt-app/node_modules/
+
+# ── Nuxt ──
+.nuxt/
+.output/
+.nitro/
+.cache/
+nuxt-app/.nuxt/
+nuxt-app/.output/
 
 # ── 构建产物 ──
 build/
