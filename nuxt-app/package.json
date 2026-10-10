@@ -12,7 +12,8 @@
     "generate": "nuxt generate",
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
-    "typecheck": "vue-tsc --noEmit"
+    "typecheck": "vue-tsc --noEmit",
+    "mock": "node mock-backend.mjs"
   },
   "dependencies": {
     "@nuxt/icon": "^1.0.0",
