@@ -21,7 +21,7 @@
 关键帧无法复现。现已改为 hashlib 确定性种子（见 seed_for()）。
 """
 from __future__ import annotations
-import sys, os, json, time, asyncio, shutil
+import sys, os, json, time, asyncio, shutil, re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -157,6 +157,39 @@ SCENES = [
 ]
 
 
+_SENT_PUNCT = re.compile(r"[，,。、！？!？；;…\n]")  # 人名里不会出现的标点
+_SPEAKER_MAX_LEN = 10                              # 人名前缀长度上限，超了就当正文
+
+
+def strip_speaker(text: str) -> str:
+    """去掉台词前的人名前缀：「掌柜：「…」」→「「…」」。
+
+    2026-10-10 约定：**画面上不打说话人名**（用户要求），只显示台词本身。
+    数据结构 lines 仍保持 "角色名：台词" 不变 —— add_stepfun_tts.split_line()
+    靠它拆出说话人来查音色，动了数据就配不了音。
+
+    只切"短前缀 + 冒号"的形态：前缀里出现句读或过长，就判定为台词正文里的
+    冒号（如「他只说了三个字：走。」），原样保留，不误伤。
+    """
+    t = (text or "").strip()
+    if not t:
+        return ""
+    for sep in ("：", ":"):
+        head, hit, tail = t.partition(sep)
+        if not hit:
+            continue
+        head_s, tail_s = head.strip(), tail.strip()
+        if not head_s or len(head_s) > _SPEAKER_MAX_LEN:
+            continue
+        if _SENT_PUNCT.search(head_s):
+            continue                        # 人名里不会有句读 → 这是正文中的冒号
+        if castlib.is_speaker(head_s):
+            return tail_s                   # 资产表登记过的角色名/别名
+        if tail_s.startswith("「"):
+            return tail_s                   # 台词以引号起头 → 冒号前必是人名
+    return t
+
+
 def scene_subtitle(scene) -> str:
     """屏显字幕文本：背景旁白(nar) 与角色台词(lines) 都要上屏。
 
@@ -164,10 +197,12 @@ def scene_subtitle(scene) -> str:
       - nar   = 故事背景/环境/动作描写 —— 【不配音】，只上屏（灰白小字）
       - lines = 角色台词 —— 【要配音】，同时也要上屏（暖黄大字），
                 否则会出现"念了台词但画面上看不见"的怪现象
+    补充（2026-10-10）：台词上屏时**去掉人名前缀**，只留台词本身
+                （对应 strip_speaker）。音色仍由数据里的角色名决定，不受影响。
     返回两段文本用 \n 分隔，make_subtitle_png 会分两档样式渲染。
     """
     nar = (scene.get("nar") or "").strip()
-    line = (scene.get("lines") or "").strip()
+    line = strip_speaker((scene.get("lines") or "").strip())
     if nar and line:
         return f"{nar}\n{line}"
     return line or nar

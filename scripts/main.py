@@ -4048,17 +4048,9 @@ async def _add_manga_fx(video_path: str, scene, scene_dir: Path) -> str:
         )
         filters.append(sfx_filter)
     
-    # 2. 角色标签: 左上角显示说话角色名
-    if characters:
-        char_name = characters.split(",")[0].strip()[:4]
-        char_filter = (
-            f"drawtext={font_param}"
-            f"text='[{char_name}]':"
-            f"fontsize=28:fontcolor=white@0.85:borderw=2:bordercolor=black@0.5:"
-            f"x=20:y=30:"
-            f"enable='between(t,0.1,8)'"
-        )
-        filters.append(char_filter)
+    # 2. 角色标签：2026-10-10 移除 —— 用户要求画面上不打说话人名
+    #    （原逻辑在此处按 scene.characters 画左上角 "[角色名]"；
+    #     与 novel_video.strip_speaker() 保持一致：人名只用于选音色，不上屏）
     
     # 3. 字幕: 底部居中, 半透明黑底
     if subtitle and len(subtitle) > 1:

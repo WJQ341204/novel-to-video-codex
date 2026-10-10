@@ -66,6 +66,26 @@ def resolve_speaker(name: str) -> str:
     return name
 
 
+def speaker_names() -> set:
+    """所有合法的说话人名：正式角色名 + 别名 + voices 键。
+
+    用途：判断台词里 "X：……" 的 X 到底是不是人名（而不是正文里的冒号）。
+    """
+    c = load()
+    names = set(c.get("characters") or {}) | set(c.get("voices") or {})
+    for cfg in (c.get("characters") or {}).values():
+        names |= set(cfg.get("alias") or [])
+    return {n for n in names if n}
+
+
+def is_speaker(name: str) -> bool:
+    """这个名字是不是资产表登记过的说话人（含别名）。"""
+    n = (name or "").strip()
+    if not n:
+        return False
+    return n in speaker_names() or resolve_speaker(n) != n
+
+
 def shot_overrides() -> dict:
     return load().get("shot_overrides", {})
 
