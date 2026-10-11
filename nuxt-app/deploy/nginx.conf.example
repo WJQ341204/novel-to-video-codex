@@ -1,0 +1,69 @@
+# 墨影流光 Nuxt 前端 —— nginx 反代样例
+#
+# 拓扑：浏览器 → nginx(80/443) → Nuxt SSR(3000) 与 FastAPI 后端(8190)
+# 若直接让 Nuxt 自己的 routeRules 代理 /api /output，可只保留 location / 一段。
+# 注意：WebSocket 进度推送必须单独一段带 Upgrade 头，否则连不上。
+
+upstream luminaforge_nuxt {
+    server 127.0.0.1:3000;
+    keepalive 32;
+}
+
+upstream luminaforge_backend {
+    server 127.0.0.1:8190;
+    keepalive 32;
+}
+
+server {
+    listen 80;
+    server_name your.domain.com;   # ← 改成你的域名
+
+    client_max_body_size 200m;     # 上传小说/参考图需要
+
+    # ── Nuxt SSR 前端（其余全部走它）──
+    location / {
+        proxy_pass http://luminaforge_nuxt;
+        proxy_http_version 1.1;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # ── 后端 REST ──
+    location /api/ {
+        proxy_pass http://luminaforge_backend;
+        proxy_http_version 1.1;
+        proxy_set_header Host    $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_read_timeout 300s;
+    }
+
+    # ── 产物文件（成片 / 首帧 PNG / 音频）──
+    location /output/ {
+        proxy_pass http://luminaforge_backend;
+        proxy_set_header Host $host;
+        # mp4 必须支持 Range，否则浏览器拖不动进度条
+        proxy_set_header Range $http_range;
+        proxy_set_header If-Range $http_if_range;
+        proxy_no_cache 1;
+        proxy_max_temp_file_size 0;
+        add_header Accept-Ranges bytes;
+    }
+
+    # ── WebSocket：生成进度推送 ──
+    location /ws/ {
+        proxy_pass http://luminaforge_backend;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade    $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host       $host;
+        proxy_read_timeout 3600s;    # 生成一次可能十几分钟，别让 nginx 掐断
+        proxy_send_timeout 3600s;
+    }
+
+    # 若走 https，把证书配置加在这里；前端 wsBase 相应改成 wss://your.domain.com
+    # listen 443 ssl;
+    # ssl_certificate     /path/to/fullchain.pem;
+    # ssl_certificate_key /path/to/privkey.pem;
+}

@@ -1,4 +1,9 @@
 // Nuxt 配置：接入 Iconify（@nuxt/icon）+ Tailwind + Pinia，并代理后端 FastAPI(8190)
+//
+// 后端地址：构建期由 NUXT_BACKEND_ORIGIN 决定（默认 http://localhost:8190）。
+// 例：NUXT_BACKEND_ORIGIN=http://10.0.0.5:8190 npm run build
+const BACKEND = process.env.NUXT_BACKEND_ORIGIN || "http://localhost:8190"
+
 export default defineNuxtConfig({
   modules: ["@nuxt/icon", "@nuxtjs/tailwindcss", "@pinia/nuxt"],
 
@@ -24,10 +29,18 @@ export default defineNuxtConfig({
     // /api/health（实测 404）。故把前缀补在 target 上，由 httpxy 的
     // joinURL(target.pathname, requestPath) 拼回完整路径。
     devProxy: {
-      "/api": { target: "http://localhost:8190/api", changeOrigin: true },
-      "/output": { target: "http://localhost:8190/output", changeOrigin: true },
+      "/api": { target: `${BACKEND}/api`, changeOrigin: true },
+      "/output": { target: `${BACKEND}/output`, changeOrigin: true },
       // 注意：这里**不要**配 /ws —— devProxy 处理不了 upgrade（见上方 wsBase 注释），
       // 配了也只会被当成普通 HTTP 请求代理过去，反而误导。
+    },
+
+    // ⚠️ 更要命的坑：devProxy **只在 nuxt dev 生效**，npm run build 出来的产物不带它，
+    // 生产模式下 /api 会全 404。生产代理必须走 routeRules（Nitro 的 proxy handler 会
+    // 打进构建产物）。这里的 ** 会被替换成匹配到的路径，所以不存在剥前缀问题。
+    routeRules: {
+      "/api/**": { proxy: `${BACKEND}/api/**` },
+      "/output/**": { proxy: `${BACKEND}/output/**` },
     },
   },
 
