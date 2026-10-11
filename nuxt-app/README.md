@@ -107,5 +107,6 @@ nuxt-app/
 
 ## 迁移说明
 
-见 `docs/全栈技术文档.md` §4.2（目标架构与迁移路径）。
-现状 `web/`（React + Vite）与本目录并行，按页面逐步切换。
+- 整盘迁移路线见 **[`MIGRATION.md`](./MIGRATION.md)**（web/ → nuxt-app/ 的页面/store/hook/端点映射与里程碑）。
+- 目标架构与后端对接见 `docs/全栈技术文档.md` §4.2。
+- 现状 `web/`（React + Vite）与本目录并行，按页面逐步切换（推荐 nginx 按路由渐进切流）。
