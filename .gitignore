@@ -100,6 +100,12 @@ story2/refs/
 cosyvoice2/cn_refs/*.wav
 output/
 
+# ── 第三方 vendored 依赖（手动管理，不再入库）──
+# OpenMontage：云端视频引擎的 provider 工具来源（engines/cloud.py 靠 sys.path 注入 + 懒加载封装它）。
+# 原为 v12.3 时整目录快照导入（90MB / 2104 文件），2026-10-12 改为手动管理以缩小主仓体积。
+# 恢复方式：见 scripts/fetch_openmontage.ps1 或 docs/VENDORED_DEPS.md
+OpenMontage/
+
 # ── 本次安全清理：不入库的个人/环境信息与第三方插件 ──
 _plugins/
 .dsh-project-memory/
