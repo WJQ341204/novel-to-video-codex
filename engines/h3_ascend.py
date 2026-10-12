@@ -1,7 +1,8 @@
-"""MiniMax H3 自托管引擎（昇腾 910B 服务器）。
+"""MiniMax H3 自托管引擎（OpenAI 兼容 /v1/videos）。
 
-与 engines/cloud.py 里的 `minimax` 云端 API 不同：本引擎对接**你自己的**
-Ascend 910B 服务器上跑的 vLLM-Omni / SGLang H3 服务（OpenAI 兼容 /v1/videos）。
+与 engines/cloud.py 里的 `minimax` 云端 API 不同：本引擎对接**你自己硬件**上跑的
+H3 服务。H3 原生支持 NVIDIA CUDA（ComfyUI ≥0.30.0 / SGLang / vLLM）与昇腾 910B
+（vLLM-Omni NPU），昇腾只是其中一条部署路线，并非专属。
 权重免费、算力在你自己硬件上，cost_usd 恒为 0。
 
 接入方式（settings.yaml / 代码）：
@@ -24,8 +25,8 @@ Ascend 910B 服务器上跑的 vLLM-Omni / SGLang H3 服务（OpenAI 兼容 /v1/
     并通过 ClipResult.audio_path 暴露给下游（默认 False，与既有「视频+外部TTS」管线解耦）。
   - ref2va 参考图：req.reference_images 以 base64 内联传给 H3。
 
-⚠️ 部署与接口字段需按你的服务器实际 OpenAPI schema 校验一次：
-   见 docs/H3_ASCEND_DEPLOY.md 与 scripts/deploy_h3_ascend.sh。
+⚠️ 部署与接口字段需按你的服务实际 OpenAPI schema 校验一次：
+   schema 校准工具 scripts/h3_schema_probe.py；昇腾路线启动脚本 scripts/deploy_h3_ascend.sh。
    响应解析对常见字段名（video/audio/url/b64_json…）做了宽松兼容，真机返回形状可能略有差异。
 """
 from __future__ import annotations

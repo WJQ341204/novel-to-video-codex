@@ -1,19 +1,21 @@
 # novel-to-video-codex 工业化配置（设计文档 docs/INDUSTRIALIZATION.md §2.4）
 engines:
   cloud:
-    video_mode: local         # 用户选定：仅本地，Wan 2.2 TI2V-5B（8GB 稳定、首帧忠实）
+    video_mode: local         # 用户选定：仅本地，Wan 2.2 TI2V-5B（首帧忠实、离线可跑）
     priority: [seedance_ark, kling_official, minimax, jimeng, grok,
                fal_kling, fal_seedance, fal_minimax, runway, veo]
     max_cost_per_clip_usd: 1.0
     timeout_seconds: 900
   local:
     local_kind: wan5b        # comfyui(LTX) | wan(A14B) | wan5b(TI2V-5B，当前生产引擎)
+                             # 32G 显存已可改 wan（Wan2.2-A14B）获更高画质，需先备 A14B 权重
     checkpoint: ltx-2.3-22b-dev-fp8.safetensors
     text_encoder: gemma_3_12B_it_fpmixed.safetensors
-    quality: high            # normal|high（high=65帧/3s；步数恒 8+3，蒸馏模型加步数有害）
-    width: 672
-    height: 1152
-    frames: 65               # 8GB显存降负载：960×1728×96帧 会 staging~23GB/170s每步→"卡死"；降为672×1152×65帧稳定（实测场景6-12成功）
+    quality: high            # normal|high（high=96帧/4s；步数恒 8+3，蒸馏模型加步数有害）
+    width: 960               # 32G 放开（8GB 期间曾降至 672）
+    height: 1728             # 32G 放开（8GB 期间曾降至 1152）
+    frames: 96               # 32G 放开：恢复质量甜点（8GB 期间降至 65）
+                             # 注：960×1728×96 约 staging 23GB，8GB 卡会卡死，32G 可容纳
     fps: 24
 
 quality:

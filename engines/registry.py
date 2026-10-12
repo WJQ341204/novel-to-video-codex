@@ -103,7 +103,7 @@ class EngineRouter:
                 from .h3_ascend import H3AscendEngine
                 local_status = {
                     "status": "ready" if H3AscendEngine().is_available() else "未配置 H3_ASCEND_URL",
-                    "engine": "h3_ascend (self-hosted Ascend 910B)",
+                    "engine": "h3_ascend (self-hosted H3, CUDA/Ascend)",
                 }
             except Exception as exc:  # noqa: BLE001
                 local_status = {"status": f"error: {exc}"}
