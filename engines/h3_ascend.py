@@ -26,7 +26,11 @@ H3 服务。H3 原生支持 NVIDIA CUDA（ComfyUI ≥0.30.0 / SGLang / vLLM）�
   - ref2va 参考图：req.reference_images 以 base64 内联传给 H3。
 
 ⚠️ 部署与接口字段需按你的服务实际 OpenAPI schema 校验一次：
-   schema 校准工具 scripts/h3_schema_probe.py；昇腾路线启动脚本 scripts/deploy_h3_ascend.sh。
+   schema 校准工具 scripts/h3_schema_probe.py。
+   启动脚本按路线二选一：
+   - 昇腾路线（vLLM-Omni NPU）：scripts/deploy_h3_ascend.sh
+   - NVIDIA CUDA 路线（智星云等租卡 / 本地 5090，ComfyUI 手动出片）：
+     scripts/deploy_h3_comfyui.py + docs/H3_COMFYUI_DEPLOY.md
    响应解析对常见字段名（video/audio/url/b64_json…）做了宽松兼容，真机返回形状可能略有差异。
 """
 from __future__ import annotations
@@ -99,7 +103,8 @@ def _extract_audio_url(payload: dict) -> Optional[str]:
 
 
 class H3AscendEngine(BaseEngine):
-    """自托管 MiniMax H3（昇腾 910B）引擎。kind=hybrid：算力在你自己硬件，经 HTTP 调用。"""
+    """自托管 MiniMax H3 引擎（后端中立：NVIDIA CUDA / 昇腾 910B 均可）。
+    kind=hybrid：算力在你自己硬件（如智星云租用的 GPU 实例），经 HTTP 调用。"""
 
     name = "h3_ascend"
     kind = "hybrid"          # 自托管远程服务
@@ -126,7 +131,7 @@ class H3AscendEngine(BaseEngine):
         return 0.0  # 自托管，自有算力，不计费
 
     def describe(self) -> str:
-        return f"MiniMax H3 @ {self.url} (self-hosted Ascend 910B, 不计费)"
+        return f"MiniMax H3 @ {self.url} (self-hosted, CUDA/Ascend, 不计费)"
 
     # ─── HTTP 底层（同步 + to_thread 异步化）──────────────────
     def _request(self, method: str, path: str, body: Optional[dict] = None) -> dict:
