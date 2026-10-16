@@ -12,10 +12,13 @@ engines:
     checkpoint: ltx-2.3-22b-dev-fp8.safetensors
     text_encoder: gemma_3_12B_it_fpmixed.safetensors
     quality: high            # normal|high（high=96帧/4s；步数恒 8+3，蒸馏模型加步数有害）
-    width: 960               # 32G 放开（8GB 期间曾降至 672）
-    height: 1728             # 32G 放开（8GB 期间曾降至 1152）
+    width: 960               # 32G 放开（对应租用算力服务器上的 32G 卡；8GB 期间曾降至 672）
+    height: 1728             # 32G 放开（对应租用算力服务器上的 32G 卡；8GB 期间曾降至 1152）
     frames: 96               # 32G 放开：恢复质量甜点（8GB 期间降至 65）
                              # 注：960×1728×96 约 staging 23GB，8GB 卡会卡死，32G 可容纳
+                             # ⚠️ 2026-10-16：32G 卡在租用的算力服务器上，本开发机实测仅
+                             # RTX 4060 Laptop 8GB——在本机直接跑必须临时把 width/height/frames
+                             # 调回 672/1152/65，否则必卡死。H3 也部署在那台租用服务器上。
     fps: 24
 
 quality:
