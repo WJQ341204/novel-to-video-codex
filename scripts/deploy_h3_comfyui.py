@@ -31,11 +31,12 @@
     python scripts/deploy_h3_comfyui.py --profile 48g --comfyui-dir /data/ComfyUI
 
 profile 与智星云在售卡的对应关系（2026-10 官网价）：
-    5090  RTX 5090 32G      ¥3.16/h（目前已满需预约；本地 5090 同款实测 10.1s 片段 175s）
+    5090  RTX 5090 32G      ¥3.16/h（目前已满需预约；公开实测 243帧/10.1s/864×480 = 175s）
     48g   RTX A6000 48G     ¥2.40/h（需预约）
     80g   A100-SXM4-80GB    ¥8.00/h（立即可用）
     24g   RTX 4090 24G      ¥1.65/h（需预约）
     V100 不支持：Volta 无 BF16，H3 权重混合精度跑不动，别租。
+    开发机本机（RTX 4060 Laptop 8GB）跑不了 H3：最小量化档权重就超显存，别试。
 
 权重来源（HuggingFace，均为社区/官方量化重打包）：
     Abiray/MiniMax-H3-GGUF                     GGUF Q3_K_M~Q5_K_M（FL2VA+Ref2VA，15.6-23.9GB）
@@ -68,7 +69,7 @@ from pathlib import Path
 PROFILES: dict[str, dict] = {
     "5090": {
         "desc": "RTX 5090 32G（Blackwell）→ NVFP4 pruned 扩散 + NVFP4 AWQ 文本编码器",
-        "vram": "resident 约 20GB；本地 5090 实测 243帧/10.1s/864×480 带音频/10步 = 175 秒",
+        "vram": "resident 约 20GB；公开实测 RTX 5090：243帧/10.1s/864×480 带音频/10步 = 175 秒",
         "items": [
             ("Abiray/Minimax-H3-nvfp4-INT4-INT8-Convrot",
              ["*[Nn][Vv][Ff][Pp]4*"], "models/diffusion_models"),
