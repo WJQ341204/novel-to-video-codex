@@ -1,6 +1,8 @@
 """MiniMax H3 一键部署脚本 —— NVIDIA CUDA 路线（智星云等国内 GPU 云 / 本地卡）。
 
 在租来的 Linux GPU 实例上 SSH 登录后运行，自动完成：
+  0. Blackwell 预检（profile=5090 时要求 torch ≥2.8 + cu128，不达标直接退出并给升级命令，
+     避免 40-60GB 权重下完才发现跑不了）
   1. 安装/升级 huggingface_hub（国内默认走 hf-mirror.com 镜像）
   2. 克隆或更新 ComfyUI（要求 ≥ v0.30.0，H3 原生架构支持从这个版本开始）
   3. 安装 ComfyUI-GGUF 自定义节点，并执行 apply_gguf_arch_patch.py（幂等，
@@ -172,6 +174,37 @@ def check_ffmpeg() -> None:
     warn("未找到 ffmpeg，尝试 apt 安装（需要 sudo 权限）")
     if run(["sudo", "apt-get", "install", "-y", "ffmpeg"], check=False).returncode != 0:
         warn("自动安装失败，请手动安装：sudo apt-get update && sudo apt-get install -y ffmpeg")
+
+
+def check_torch(profile: str) -> None:
+    """Blackwell（RTX 5090 / sm_120）必须 torch ≥2.8 + cu128，否则 NVFP4 kernel 直接跑不了。
+    放在下权重之前——不预检，40-60GB 下完了才发现跑不起来才冤枉。"""
+    try:
+        import torch
+    except ImportError:
+        warn("当前 python 没有 torch。若用智星云 ComfyUI 镜像，请用镜像自带的 python 跑本脚本")
+        return
+    log(f"  torch {torch.__version__} | cuda {torch.version.cuda or 'N/A'}")
+    if profile != "5090":
+        return
+    try:
+        ver = torch.__version__.split("+")[0]
+        major, minor = (int(p) for p in ver.split(".")[:2])
+    except ValueError:
+        warn("torch 版本号解析失败，请自行确认 ≥2.8")
+        return
+    cuda = torch.version.cuda or ""
+    try:
+        cuda_mm = (int(cuda.split(".")[0]), int(cuda.split(".")[1]))
+    except (ValueError, IndexError):
+        cuda_mm = (0, 0)
+    if (major, minor) < (2, 8) or cuda_mm < (12, 8):
+        fail("RTX 5090（Blackwell sm_120）需要 torch ≥2.8 且 cuda ≥12.8，当前不满足")
+        warn("  升级命令：pip install --pre torch --index-url "
+             "https://download.pytorch.org/whl/nightly/cu128")
+        warn("  （Ampere/Ada 卡如 A100/A6000/4090 不受此限，可忽略）")
+        sys.exit(1)
+    ok("torch 支持 Blackwell（sm_120）")
 
 
 # ─── ComfyUI ───────────────────────────────────────────────────
@@ -366,6 +399,7 @@ def main() -> int:
         return 0
 
     ensure_hub(use_mirror=not args.no_mirror)
+    check_torch(args.profile)
     setup_comfyui(comfy_dir)
     check_ffmpeg()
 

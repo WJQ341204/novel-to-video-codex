@@ -131,11 +131,19 @@ python scripts/deploy_h3_comfyui.py --profile 48g --list-files
 python scripts/deploy_h3_comfyui.py --profile 48g
 ```
 
-脚本自动完成：装/升 `huggingface_hub`（默认 `HF_ENDPOINT=hf-mirror.com` 国内镜像）→
-克隆/更新 ComfyUI 并校验 ≥ v0.30.0 → 装 ComfyUI-GGUF 节点 → **执行
-`apply_gguf_arch_patch.py`（幂等）** → 检查 ffmpeg → 按 profile 下载权重并自动归类到
-`models/diffusion_models`（扩散）、`models/text_encoders`（编码器）、`models/vae`（双 VAE）、
-`user/default`（workflow JSON）→ 打印启动命令与隧道命令。
+脚本自动完成：Blackwell 预检（5090 profile 要求 torch ≥2.8 + cu128，不达标直接退出并
+给升级命令，避免权重下完才发现跑不了）→ 装/升 `huggingface_hub`（默认
+`HF_ENDPOINT=hf-mirror.com` 国内镜像）→ 克隆/更新 ComfyUI 并校验 ≥ v0.30.0 → 装
+ComfyUI-GGUF 节点 → **执行 `apply_gguf_arch_patch.py`（幂等）** → 检查 ffmpeg → 按
+profile 下载权重并自动归类到 `models/diffusion_models`（扩散）、
+`models/text_encoders`（编码器）、`models/vae`（双 VAE）、`user/default`（workflow JSON）
+→ 打印启动命令与隧道命令。
+
+> ⚠️ **智星云 5090 实例特别注意**：Blackwell（sm_120）需要 torch ≥2.8 + cu128。
+> 平台 ComfyUI 镜像自带的 torch 版本未知——脚本会先预检，不达标会提示用
+> `pip install --pre torch --index-url https://download.pytorch.org/whl/nightly/cu128` 升级。
+> 建议实例开机后先单独跑一次 `--profile 5090 --list-files` 热身（只读、秒回），
+> 确认 torch/ComfyUI 版本都过关再下权重。
 
 > 如果镜像自带 ComfyUI，把 `--comfyui-dir` 指向镜像里的 ComfyUI 目录即可复用；
 > 建议装到数据盘：`--comfyui-dir /data/ComfyUI`。
