@@ -29,7 +29,7 @@
 脚本内置三重保护（勿删）：
 - `CODEBUDDY_SAFE_DELETE_ENABLED=0`：禁用 safe-delete 钩子。**没有它，场景收尾清理临时文件时进程会被钩子 fail-closed 杀死**
 - 代理环境变量清空：防止 Clash 未运行时 httpx 报 `[Errno 22]`
-- ffmpeg 加入 PATH：`C:\Users\Mr.Wang\ffmpeg-shared\ffmpeg-master-latest-win64-gpl\bin`
+- ffmpeg 加入 PATH：`<FFMPEG_DIR>/bin`
 
 ## 三、出片五步
 
