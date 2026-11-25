@@ -29,7 +29,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 
 # ffmpeg 不在系统 PATH 时手动补齐
-FFMPEG_DIR = Path(r"C:\Users\Mr.Wang\ffmpeg-shared\ffmpeg-master-latest-win64-gpl\bin")
+FFMPEG_DIR = Path("ffmpeg")
 if FFMPEG_DIR.exists():
     os.environ["PATH"] = str(FFMPEG_DIR) + os.pathsep + os.environ.get("PATH", "")
 
