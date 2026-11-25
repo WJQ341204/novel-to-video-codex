@@ -13,7 +13,7 @@ Video Engine — 统一视频生成调度 (v12.0)
   7. ken_burns  — FFmpeg zoompan 推拉摇移（零成本兜底）
   8. parallax   — 三层视差动画（需 SAM 预处理）
 """
-import asyncio, subprocess, sys, os, json, copy, random, shutil
+import asyncio, subprocess, sys, os, json, copy, random, shutil, re
 from pathlib import Path
 
 PROJECT_DIR = Path(__file__).parent
@@ -482,22 +482,113 @@ async def _wan_a14b(scene, scene_dir, job, ctx) -> str:
             ref = scene_dir / cand
             break
     prompt = getattr(scene, "video_prompt", None) or getattr(scene, "description", "") or ""
-    req = GenerateRequest(
-        prompt=prompt, first_frame=kf,
-        reference_images=[ref] if ref else [],
-        width=384, height=672, duration_seconds=2.0, fps=24, seed=None,
-        output_dir=scene_dir, output_name="wan_a14b",
-        timeout_seconds=2500,
+    target = _scene_target_seconds(scene, job)
+    # A14B 单次上限约 3s（81 帧）；按目标时长等分多段，末帧接力，最后无损拼接
+    count = max(1, int(target / 3.0) + (1 if target % 3.0 else 0))
+    seg_duration = round(target / count, 2)
+    segs = [seg_duration] * count
+    print(f"[VideoEngine] 场景 {getattr(scene, 'id', '?')}: Wan2.2 A14B GGUF "
+          f"目标 {target:.1f}s，分 {count} 段 × {seg_duration}s（Lightx2v 4-step）", flush=True)
+
+    engine = WanEngine(
+        lora_high=[{"name": "wan2.2_i2v_lightx2v_4steps_lora_v1_high_noise.safetensors", "strength": 3.0}],
+        lora_low=[{"name": "wan2.2_i2v_lightx2v_4steps_lora_v1_low_noise.safetensors", "strength": 1.5}],
     )
-    clip = await WanEngine().generate(req)
-    return str(clip.video_path)
+    clips, first_frame = [], kf
+    for idx, dur in enumerate(segs):
+        req = GenerateRequest(
+            prompt=prompt, first_frame=first_frame,
+            reference_images=[ref] if (ref and idx == 0) else [],
+            width=384, height=672, duration_seconds=dur, fps=24,
+            seed=20261117 + idx * 7919,
+            output_dir=scene_dir,
+            output_name=("wan_a14b" if count == 1 else f"wan_a14b_seg{idx + 1:02d}"),
+            timeout_seconds=2500,
+        )
+        clip = await engine.generate(req)
+        if not clip or not Path(clip.video_path).exists():
+            raise RuntimeError(f"A14B 第 {idx + 1} 段无输出")
+        clips.append(Path(clip.video_path))
+        if idx < count - 1:
+            nxt = scene_dir / f"wan_a14b_seg{idx + 1:02d}_last.png"
+            first_frame = nxt if _extract_last_frame(clips[-1], nxt) else kf
+    if count == 1:
+        return str(clips[0])
+    out = scene_dir / "wan_a14b.mp4"
+    if _concat_wan5b_clips(clips, out):
+        return str(out)
+    return str(clips[0])
+
+
+def _scene_target_seconds(scene, job=None) -> float:
+    """估算该镜头真正需要的视频时长（秒）。
+
+    修复硬编码 2.0s 导致的「2 秒视频循环 9 次填满 17 秒配音」问题：
+    取 ①已知配音时长 ②字幕字数估算 ③分镜标称时长 三者最大值。
+    Edge-TTS 中文约 3.9 个有效字/秒，实测 67 个有效字 ≈ 17s，误差很小。
+    """
+    try:
+        audio_dur = float(getattr(scene, "audio_duration", 0) or 0)
+    except (TypeError, ValueError):
+        audio_dur = 0.0
+
+    declared = 0.0
+    m = re.search(r"(\d+(?:\.\d+)?)\s*s", str(getattr(scene, "duration", "") or ""), re.I)
+    if m:
+        declared = float(m.group(1))
+
+    text = str(getattr(scene, "subtitle_text", "") or "").strip()
+    if not text:
+        text = str(getattr(scene, "description", "") or "")[:80]
+    chars = len(re.sub(r"[\s，。！？、；：,.!?;:…—-]", "", text))
+    estimated = chars / 3.9 if chars else 0.0
+
+    target = max(audio_dur, estimated, declared, 1.4)
+    return min(target, 24.0)  # 最多 6 段 × 4s，防止极端长文本拖垮出片
+
+
+def _split_wan5b_segments(target: float) -> list:
+    """把目标时长切成 Wan5B 单次可生成的片段（引擎上限约 4s）。"""
+    segs, left = [], target
+    while left > 0.05:
+        seg = min(4.0, left)
+        segs.append(round(seg, 2))
+        left -= seg
+    return segs or [2.0]
+
+
+def _extract_last_frame(video, out_png) -> bool:
+    """取上一段的末帧作为下一段首帧，保证多段之间视觉连续。"""
+    try:
+        cmd = [FFMPEG, "-y", "-v", "error", "-sseof", "-0.6",
+               "-i", str(video), "-frames:v", "1", str(out_png)]
+        return subprocess.run(cmd, timeout=120,
+                              stdout=subprocess.DEVNULL,
+                              stderr=subprocess.DEVNULL).returncode == 0 and Path(out_png).exists()
+    except Exception:
+        return False
+
+
+def _concat_wan5b_clips(clips: list, output) -> bool:
+    """无损拼接同规格分段视频。"""
+    try:
+        listing = output.parent / f"{output.stem}_concat.txt"
+        listing.write_text("".join(f"file '{p.resolve().as_posix()}'\n" for p in clips),
+                           encoding="utf-8")
+        cmd = [FFMPEG, "-y", "-v", "error", "-f", "concat", "-safe", "0",
+               "-i", str(listing), "-c", "copy", str(output)]
+        return subprocess.run(cmd, timeout=300,
+                              stdout=subprocess.DEVNULL,
+                              stderr=subprocess.DEVNULL).returncode == 0 and output.exists()
+    except Exception:
+        return False
 
 
 async def _wan5b(scene, scene_dir, job, ctx) -> str:
-    """Wan 2.2 TI2V-5B 轻量图生视频（用户选定的默认主引擎，8GB 显存稳定）。
+    """Wan 2.2 TI2V-5B 轻量图生视频（8GB 显存稳定）。
 
-    单模型非 MoE，比 A14B 更快且不依赖 8GB 下易卡的 clip_vision 参考条件；
-    引擎内部自动做 RIFE 补帧(48fps) + 4x 超分。
+    按镜头真实时长分段生成（每段 ≤4s），末帧接力下一段，最后无损拼接；
+    不再固定生成 2 秒再靠后期循环填满整条配音。
     """
     from pathlib import Path
     from engines.wan5b import Wan5BEngine
@@ -516,36 +607,281 @@ async def _wan5b(scene, scene_dir, job, ctx) -> str:
         kf = pngs[0]
     prompt = getattr(scene, "video_prompt", None) or getattr(scene, "description", "") or ""
 
-    # v12.4: 补重试 —— 原先 _wan5b 一次失败即静默降级，实测降级率 8.3%。
-    # 与 _wan_a14b 对齐：最多重试 2 次，指数退避，且每次换 seed
-    # （同一 seed 遇到同样的噪声/显存路径容易重复失败）。
+    target = _scene_target_seconds(scene, job)
+    segs = _split_wan5b_segments(target)
+    print(f"[VideoEngine] 场景 {getattr(scene, 'id', '?')}: Wan5B 目标 {target:.1f}s，"
+          f"分 {len(segs)} 段 {segs}", flush=True)
+
+    clips = []
+    first_frame = kf
     max_retries = 2
-    last_err = ""
-    for attempt in range(max_retries + 1):
-        try:
-            req = GenerateRequest(
-                prompt=prompt, first_frame=kf,
-                width=704, height=1280, duration_seconds=2.0, fps=24,
-                # 每次重试换噪声，避免卡在同一条失败路径上
-                seed=None if attempt == 0 else 1000 + attempt * 7919,
-                output_dir=scene_dir, output_name="wan5b",
-                timeout_seconds=2400,
-            )
-            clip = await Wan5BEngine().generate(req)
-            if clip and getattr(clip, "video_path", None) and Path(clip.video_path).exists():
-                return str(clip.video_path)
-            last_err = "引擎返回空结果"
-        except Exception as e:
-            last_err = f"{type(e).__name__}: {str(e)[:120]}"
-            print(f"[VideoEngine] Wan5B 第{attempt + 1}次失败: {last_err}", flush=True)
+    for idx, dur in enumerate(segs):
+        ok, last_err = False, ""
+        for attempt in range(max_retries + 1):
+            try:
+                req = GenerateRequest(
+                    prompt=prompt, first_frame=first_frame,
+                    width=704, height=1280, duration_seconds=dur, fps=24,
+                    seed=(20261116 + idx * 7919 + attempt * 104729) if len(segs) > 1
+                         else (None if attempt == 0 else 1000 + attempt * 7919),
+                    output_dir=scene_dir,
+                    output_name=("wan5b" if len(segs) == 1 else f"wan5b_seg{idx + 1:02d}"),
+                    timeout_seconds=2400,
+                )
+                clip = await Wan5BEngine().generate(req)
+                if clip and getattr(clip, "video_path", None) and Path(clip.video_path).exists():
+                    clips.append(Path(clip.video_path))
+                    ok = True
+                    break
+                last_err = "引擎返回空结果"
+            except Exception as e:
+                last_err = f"{type(e).__name__}: {str(e)[:120]}"
+                print(f"[VideoEngine] Wan5B 第{idx + 1}段第{attempt + 1}次失败: {last_err}", flush=True)
+            if attempt < max_retries:
+                await asyncio.sleep((attempt + 1) * 5)
+        if not ok:
+            scene.error_msg = f"wan5b 第{idx + 1}段失败（{last_err}）"
+            return ""
+        if idx < len(segs) - 1:
+            nxt = scene_dir / f"wan5b_seg{idx + 1:02d}_last.png"
+            first_frame = nxt if _extract_last_frame(clips[-1], nxt) else kf
 
-        if attempt < max_retries:
-            await asyncio.sleep((attempt + 1) * 5)
-            print(f"[VideoEngine] Wan5B 重试 {attempt + 1}/{max_retries}（换 seed）", flush=True)
+    if len(clips) == 1:
+        return str(clips[0])
+    out = scene_dir / "wan5b.mp4"
+    if _concat_wan5b_clips(clips, out):
+        return str(out)
+    scene.error_msg = "wan5b 分段拼接失败，仅保留第一段"
+    return str(clips[0])
 
-    # 记录失败原因，供上层降级时留痕（v12.4: 不再静默）
-    scene.error_msg = f"wan5b 失败（{last_err}）"
-    return ""
+
+async def _agnes_flash(scene, scene_dir, job, ctx) -> str:
+    """Agnes Video 2.5 Flash 云端文生视频（4–12 秒/次，长镜头分段拼接）。"""
+    from pathlib import Path
+    from engines.agnes import AgnesVideoEngine
+    from engines.base import GenerateRequest
+
+    scene_dir = Path(scene_dir)
+    prompt = getattr(scene, "video_prompt", None) or getattr(scene, "description", "") or ""
+    target = _scene_target_seconds(scene, job)
+    count = max(1, int(target / 12.0) + (1 if target % 12.0 else 0))
+    seg_duration = round(target / count, 2)
+    print(f"[VideoEngine] 场景 {getattr(scene, 'id', '?')}: Agnes Video 2.5 Flash "
+          f"目标 {target:.1f}s，分 {count} 段 × {seg_duration}s", flush=True)
+
+    engine = AgnesVideoEngine()
+    clips = []
+    for idx in range(count):
+        req = GenerateRequest(
+            prompt=prompt,
+            first_frame=None,
+            width=720, height=1280,
+            duration_seconds=seg_duration,
+            fps=24,
+            seed=(20261118 + idx * 7919),
+            output_dir=scene_dir,
+            output_name=("agnes_flash" if count == 1 else f"agnes_flash_seg{idx + 1:02d}"),
+            timeout_seconds=900,
+        )
+        clip = await engine.generate(req)
+        if not clip or not Path(clip.video_path).exists():
+            raise RuntimeError(f"Agnes 第 {idx + 1} 段无输出")
+        clips.append(Path(clip.video_path))
+    if count == 1:
+        return str(clips[0])
+    out = scene_dir / "agnes_flash.mp4"
+    if _concat_wan5b_clips(clips, out):
+        return str(out)
+    return str(clips[0])
+
+
+_ILLUSTRATION_TOKENS = [
+    "professional illustration", "award-winning artwork", "concept art", "digital painting",
+    "illustration", "artwork", "painting", "anime", "cartoon", "3d render", "cgi",
+    "drawing", "sketch", "masterpiece", "best quality", "ultra detailed", "8k uhd",
+    "intricate details", "sharp focus",
+]
+
+
+def _photoreal_prompt(text: str, for_video: bool = False) -> str:
+    """把分镜里泛滥的插画风格词换成真人实拍电影感提示词。"""
+    p = str(text or "")
+    for token in _ILLUSTRATION_TOKENS:
+        p = re.sub(r"(?i)\b" + re.escape(token) + r"\b[,，]?\s*", "", p)
+    p = re.sub(r"\s{2,}", " ", p).strip(" ,，.。")
+    if for_video:
+        prefix = ("photorealistic live-action cinematic video, real human skin and fabric texture, "
+                  "practical lighting, natural physically plausible motion, smooth continuous movement, "
+                  "subtle camera drift, 35mm film look, ")
+        suffix = ", no illustration, no painting, no anime, no cartoon, no CGI, no morphing"
+    else:
+        prefix = ("photorealistic live-action film still, real human skin and fabric texture, "
+                  "practical lighting, shallow depth of field, 35mm film look, ")
+        suffix = ", no illustration, no painting, no anime, no cartoon, no CGI"
+    return prefix + p + suffix
+
+
+async def _local_qwen_keyframe(scene, scene_dir, prompt: str) -> Path:
+    """用本地 ComfyUI + Qwen-Image 2.1 生成关键帧，不调用云端文生图。"""
+    import json as _json
+    import random as _random
+    import scripts.main as _main
+
+    wf = _main.load_workflow("txt2img_qwen21")
+    raw = _json.dumps(wf, ensure_ascii=False)
+    raw = (raw.replace("{{POSITIVE_PROMPT}}", prompt)
+              .replace("{{NEGATIVE_PROMPT}}", "low quality, blurry, distorted, deformed, watermark, text")
+              .replace("{{SEED}}", str(_random.randint(1, 2**31 - 1)))
+              .replace("{{WIDTH}}", "736")
+              .replace("{{HEIGHT}}", "1312"))
+    wf = _json.loads(raw)
+    pid = await _main.comfyui.submit_workflow(wf)
+    result = await _main.comfyui.wait_for_result_ws(pid, timeout=1200)
+    for node_out in result.get("outputs", {}).values():
+        for img in node_out.get("images", []):
+            saved = await _main.comfyui.download_output(
+                img.get("filename", ""), img.get("subfolder", ""),
+                img.get("type", "output"), save_dir=Path(scene_dir))
+            print(f"[LocalKeyframe] Qwen-Image 2.1: {saved}", flush=True)
+            return Path(saved)
+    raise RuntimeError("Qwen 关键帧工作流没有返回图片")
+
+
+async def _keyframe_url_from_local(local_path: Path, img_engine, scene_dir: Path) -> str:
+    """把本地关键帧变成 Agnes 视频可用的 URL：走图生图中转拿公网 URL。"""
+    import base64
+    local_path = Path(local_path)
+    # Step 1 输出是 1080×1920，先等比缩到 736×1312 再上传，减少 Base64 体积和接口超时
+    src_w, src_h = 1080, 1920
+    if src_w / src_h > 736 / 1312:
+        src_h = int(src_w * 1312 / 736)
+    else:
+        src_w = int(src_h * 736 / 1312)
+    scaled = Path(scene_dir) / "agnes_keyframe_upload.png"
+    try:
+        from PIL import Image
+        with Image.open(local_path) as im:
+            im.convert("RGB").resize((736, 1312), Image.LANCZOS).save(scaled)
+        local_path = scaled
+    except Exception as _e:
+        print(f"[LocalKeyframe] 缩放失败，使用原图: {str(_e)[:80]}", flush=True)
+    mime = "image/png" if str(local_path).lower().endswith(".png") else "image/jpeg"
+    data_uri = f"data:{mime};base64,{base64.b64encode(local_path.read_bytes()).decode()}"
+    print("[LocalKeyframe] 经 Agnes 图生图中转获取公网 URL", flush=True)
+    try:
+        hosted = await img_engine.generate(
+            "keep this exact image, no changes, identical composition and lighting",
+            width=736, height=1312,
+            output_path=scene_dir / "agnes_keyframe_hosted.png",
+            input_image=local_path,
+        )
+        url = hosted.get("url") or data_uri
+        print(f"[LocalKeyframe] 已取得可访问 URL: {str(url)[:70]}…", flush=True)
+        return url
+    except Exception as exc:
+        print(f"[LocalKeyframe] 中转失败，回退 Data URI: {str(exc)[:100]}", flush=True)
+        return data_uri
+
+
+async def _agnes_i2v(scene, scene_dir, job, ctx) -> str:
+    """Agnes 文生图 → 图生视频：每张关键帧拿到公网 URL 后作为 first_frame。"""
+    from pathlib import Path
+    from engines.agnes_image import AgnesImageEngine
+    from engines.agnes import AgnesVideoEngine
+    from engines.base import GenerateRequest
+
+    scene_dir = Path(scene_dir)
+    image_prompt = _photoreal_prompt(
+        getattr(scene, "image_prompt", "") or getattr(scene, "description", ""), for_video=False)
+    video_prompt = _photoreal_prompt(
+        getattr(scene, "video_prompt", "") or getattr(scene, "description", ""), for_video=True)
+    # v13.3: 把本镜字幕/对白注入视频提示词，让画面动作与字幕对齐。
+    # 原 video_prompt 只写运镜和环境（"subtle push-in, rain pouring"），不含说话/手势，
+    # 导致成片人物动作对不上字幕。这里抽取对白与关键词，显式要求口型与手势表演。
+    subtitle = str(getattr(scene, "subtitle_text", "") or "").strip()
+    if subtitle:
+        dialogue = re.sub(r"[\r\n]+", " ", subtitle)
+        # 只取引号内的纯对白；没有引号时去掉「角色：」前缀后用整句
+        quoted = re.findall(r"[「\"“']([^」\"”']+)[」\"”']", dialogue)
+        if quoted:
+            dialogue = " ".join(q.strip() for q in quoted if q.strip())
+        else:
+            dialogue = re.sub(r"^[^：:]{1,8}[：:]", "", dialogue)
+        if len(dialogue) > 120:
+            dialogue = dialogue[:120]
+        video_prompt = (
+            f"{video_prompt}, the character visibly speaks the line '{dialogue}' "
+            "with natural lip movement and matching facial expression and hand gestures, "
+            "mouth opening and closing in sync with speech, believable dialogue performance"
+        )
+    target = _scene_target_seconds(scene, job)
+    count = max(1, int(target / 12.0) + (1 if target % 12.0 else 0))
+    seg_duration = round(target / count, 2)
+    print(f"[VideoEngine] 场景 {getattr(scene, 'id', '?')}: Agnes 文生图→图生视频 "
+          f"目标 {target:.1f}s，分 {count} 段 × {seg_duration}s", flush=True)
+
+    img_engine = AgnesImageEngine()
+    vid_engine = AgnesVideoEngine()
+    use_local = os.environ.get("LOCAL_KEYFRAME", "0").strip().lower() in ("1", "true", "yes", "on")
+
+    # ── 关键帧只生成一次：优先复用 Step 1 已精选的 scene.image_path ──
+    # Step 1 已做角色锚定、环境锚定、多 seed 质量评分；此处若再出图会丢弃这些成果，
+    # 且本地 Qwen 每帧要 3-4 分钟。只有直接调用本函数（如冒烟脚本）没有 Step 1 时才现场出图。
+    existing = getattr(scene, "image_path", None)
+    if existing and Path(existing).exists():
+        local_kf = Path(existing)
+        print(f"[VideoEngine] 复用 Step 1 关键帧: {local_kf.name}（不再二次出图）", flush=True)
+    elif use_local:
+        print("[VideoEngine] 无 Step 1 关键帧，本地 Qwen-Image 2.1 现场出图", flush=True)
+        local_kf = await _local_qwen_keyframe(scene, scene_dir, image_prompt)
+    else:
+        local_kf = None
+
+    if local_kf is not None:
+        first_url = await _keyframe_url_from_local(local_kf, img_engine, scene_dir)
+    else:
+        result = await img_engine.generate(
+            image_prompt, width=736, height=1312,
+            output_path=scene_dir / "agnes_keyframe.png",
+        )
+        first_url = result["url"]
+    print(f"[VideoEngine] 关键帧来源 URL: {str(first_url)[:70]}…", flush=True)
+
+    clips = []
+    for idx in range(count):
+        req = GenerateRequest(
+            prompt=video_prompt,
+            first_frame=None,
+            first_frame_url=first_url,
+            width=720, height=1280,
+            duration_seconds=seg_duration,
+            fps=24,
+            seed=20261118 + idx * 7919,
+            output_dir=scene_dir,
+            output_name=("agnes_i2v" if count == 1 else f"agnes_i2v_seg{idx + 1:02d}"),
+            timeout_seconds=1800,
+        )
+        clip = await vid_engine.generate(req)
+        if not clip or not Path(clip.video_path).exists():
+            raise RuntimeError(f"Agnes I2V 第 {idx + 1} 段无输出")
+        clips.append(Path(clip.video_path))
+        if idx < count - 1:
+            last = scene_dir / f"agnes_i2v_seg{idx + 1:02d}_last.png"
+            if _extract_last_frame(clips[-1], last):
+                nxt = await img_engine.generate(
+                    "same scene and characters, the next moment, natural continuation, "
+                    "keep composition and lighting consistent",
+                    width=736, height=1312,
+                    output_path=scene_dir / f"agnes_keyframe_{idx + 2:02d}.png",
+                    input_image=last,
+                )
+                first_url = nxt["url"]
+    if count == 1:
+        return str(clips[0])
+    out = scene_dir / "agnes_i2v.mp4"
+    if _concat_wan5b_clips(clips, out):
+        return str(out)
+    return str(clips[0])
 
 
 VIDEO_MODES = {
@@ -558,7 +894,12 @@ VIDEO_MODES = {
     "parallax":   _parallax,
     "ken_burns":  _ken_burns,
     "wan_i2v":    _wan_a14b,
+    "wan_i2v_gguf": _wan_a14b,
+    "a14b_gguf":  _wan_a14b,
     "wan5b":      _wan5b,
+    "agnes_flash": _agnes_flash,
+    "agnes":      _agnes_flash,
+    "agnes_i2v":  _agnes_i2v,
 }
 
 
@@ -656,6 +997,57 @@ async def dispatch(scene, scene_dir, ctx: dict) -> str:
             scene.video_mode_used = "cloud_t2v"
             return r
         # 云端失败，继续走本地路径
+
+    # ── Agnes 文生图 → 图生视频（公网 URL 首帧）──
+    if mode == "agnes_i2v":
+        print(f"[VideoEngine] 场景 {scene.id}: Agnes 文生图→图生视频模式", flush=True)
+        try:
+            r = await _agnes_i2v(scene, scene_dir, job, ctx)
+            if r:
+                scene.video_mode_used = "agnes_i2v"
+                scene.error_msg = ""
+                return r
+        except Exception as e:
+            print(f"[VideoEngine] Agnes I2V 失败({str(e)[:120]})，回退本地 Wan5B", flush=True)
+        r = await _wan5b(scene, scene_dir, job, ctx)
+        if r:
+            scene.video_mode_used = "wan5b"
+            scene.error_msg = ""
+            return r
+        return ""
+
+    # ── Agnes Video 2.5 Flash 云端模式（文生视频，不占本地显存）──
+    if mode in ("agnes_flash", "agnes"):
+        print(f"[VideoEngine] 场景 {scene.id}: Agnes Video 2.5 Flash 云端模式", flush=True)
+        try:
+            r = await _agnes_flash(scene, scene_dir, job, ctx)
+            if r:
+                scene.video_mode_used = "agnes_flash"
+                scene.error_msg = ""
+                return r
+        except Exception as e:
+            print(f"[VideoEngine] Agnes 失败({str(e)[:120]})，回退本地 Wan5B", flush=True)
+        r = await _wan5b(scene, scene_dir, job, ctx)
+        if r:
+            scene.video_mode_used = "wan5b"
+            scene.error_msg = ""
+            return r
+        return ""
+
+    # ── Wan 2.2 A14B GGUF 低显存模式（Q4_K_M 双专家 + Lightx2v 4-step）──
+    if mode in ("wan_i2v_gguf", "a14b_gguf"):
+        print(f"[VideoEngine] 场景 {scene.id}: Wan 2.2 A14B GGUF 模式", flush=True)
+        r = await _wan_a14b(scene, scene_dir, job, ctx)
+        if r:
+            scene.video_mode_used = "wan_i2v_gguf"
+            scene.error_msg = ""
+            return r
+        if local_img and local_img != "__T2V_SKIPPED__" and Path(local_img).exists():
+            r = await _ken_burns(scene, scene_dir, job, ctx)
+            if r:
+                scene.video_mode_used = "ken_burns"
+                return r
+        return ""
 
     # ── Wan 2.2 I2V 稳定管线模式 ──
     if mode == "wan_i2v":
