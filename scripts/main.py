@@ -99,7 +99,8 @@ if not _default_models:
     # 默认使用仓库旁 ComfyUI/models；可用 COMFYUI_MODELS_DIR 覆盖
     _default_models = str(PROJECT_ROOT / "ComfyUI" / "models")
 COMFYUI_MODELS_DIR = Path(_default_models)
-DEEPSEEK_URL = "https://api.deepseek.com/chat/completions"
+DEEPSEEK_BASE_URL = (os.environ.get("DEEPSEEK_BASE_URL") or "https://api.deepseek.com").rstrip("/")
+DEEPSEEK_URL = DEEPSEEK_BASE_URL + "/chat/completions"
 DEEPSEEK_DEFAULT_KEY = os.environ.get("DEEPSEEK_API_KEY", "")
 
 # ─── 已知模型合理大小（字节），用于检测损坏文件 ──────────
@@ -1418,7 +1419,7 @@ def _select_tts_engine() -> str:
         if _get_stepfun_api_key():
             return "stepfun"
         print("[WARN] TTS_ENGINE=stepfun 但未配置 STEPFUN_API_KEY，回退自动选择", flush=True)
-    elif forced in ("cosyvoice", "edge"):
+    elif forced in ("cosyvoice", "edge", "qwen3"):
         return forced
     if _get_stepfun_api_key():
         return "stepfun"
@@ -1586,6 +1587,27 @@ async def generate_tts(text: str, output_path: str, voice: str = "zh-CN-Xiaoxiao
                                    volume=volume, engine=engine, mood=mood,
                                    intensity=intensity, is_narration=is_narration)
 
+    # v12.5: 可选整体语速（Qwen3-TTS 中文偏慢，2 倍速实测仍清晰且字幕为静态烧录）
+    try:
+        speed = float(os.environ.get("TTS_SPEED") or 1.0)
+    except ValueError:
+        speed = 1.0
+    if speed > 1.01 and Path(output_path).exists():
+        ffmpeg = find_ffmpeg()
+        if ffmpeg:
+            sped = str(Path(output_path).with_name(Path(output_path).stem + "_sped.mp3"))
+            proc = await asyncio.create_subprocess_exec(
+                ffmpeg, "-y", "-v", "error", "-i", str(output_path),
+                "-filter:a", f"atempo={min(speed, 2.0)}", "-ar", "48000", "-ac", "2", sped,
+                stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.PIPE,
+            )
+            _, err = await asyncio.wait_for(proc.communicate(), timeout=120)
+            if proc.returncode == 0 and Path(sped).exists() and Path(sped).stat().st_size > 1000:
+                Path(sped).replace(output_path)
+                dur = await get_audio_duration(output_path)
+            else:
+                print(f"[TTS] 变速失败，保持原速: {err.decode(errors='ignore')[:100]}", flush=True)
+
     # 合成成功则回写缓存
     if TTS_CACHE_ENABLED and cache_fp is not None:
         try:
@@ -1637,6 +1659,77 @@ async def generate_tts_batch(items: list, max_concurrency: int = 4) -> list:
     return results
 
 
+_QWEN3_VOICE_MAP = {
+    "zh-CN-XiaoxiaoNeural": "Vivian",
+    "zh-CN-XiaoyiNeural": "Serena",
+    "zh-CN-XunxiaNeural": "Sohee",
+    "zh-CN-YunxiaNeural": "Sohee",
+    "zh-CN-YunjianNeural": "Ryan",
+    "zh-CN-YunxiNeural": "Aiden",
+    "zh-CN-YunyangNeural": "Uncle_fu",
+}
+_QWEN3_VOICE_REVERSE = {v: k for k, v in _QWEN3_VOICE_MAP.items()}
+_QWEN3_MOOD_INSTRUCT = {
+    "紧张": "tense, urgent", "悲伤": "sad, slow", "温馨": "warm, gentle",
+    "壮阔": "epic, powerful", "神秘": "mysterious, whisper", "热血": "passionate, energetic",
+    "恐惧": "fearful, trembling", "喜悦": "happy, bright", "惆怅": "melancholic",
+    "愤怒": "angry, intense", "压抑": "suppressed, restrained", "宁静": "calm, soft",
+    "诡异": "eerie, unsettling", "孤独": "lonely, quiet", "平静": "calm, neutral",
+}
+
+
+def _translate_voice_for_qwen3(voice: str) -> str:
+    return _QWEN3_VOICE_MAP.get(str(voice or "").strip(), "Vivian")
+
+
+def _translate_voice_from_qwen3(voice: str) -> str:
+    return _QWEN3_VOICE_REVERSE.get(str(voice or "").strip(), "zh-CN-XiaoxiaoNeural")
+
+
+async def _generate_tts_qwen3(text: str, output_path: str, voice: str = "", mood: str = "",
+                              intensity: int = 5, is_narration: bool = False) -> float:
+    """Qwen3-TTS 0.6B 本地配音（ComfyUI 节点 FB_Qwen3TTSCustomVoice）。"""
+    speaker = _translate_voice_for_qwen3(voice)
+    instruct = _QWEN3_MOOD_INSTRUCT.get(mood or "", "")
+    if is_narration:
+        instruct = (instruct + ", calm cinematic narration").strip(", ")
+    wf = fill_workflow(load_workflow("tts_qwen3"), {
+        "TEXT": text,
+        "VOICE": speaker,
+        "SEED": abs(hash(text)) % (2**31),
+        "INSTRUCT": instruct,
+    })
+    prompt_id = await comfyui.submit_workflow(wf)
+    result = await comfyui.wait_for_result_ws(prompt_id, timeout=300)
+    for node_out in (result.get("outputs") or {}).values():
+        if "audio" not in node_out or not node_out["audio"]:
+            continue
+        info = node_out["audio"][0]
+        local = await comfyui.download_output(
+            info["filename"], info.get("subfolder", ""), save_dir=Path(output_path).parent
+        )
+        if not local or not Path(local).exists():
+            continue
+        if Path(local).suffix.lower() == ".mp3":
+            if str(Path(local).resolve()) != str(Path(output_path).resolve()):
+                shutil.copy2(local, output_path)
+        else:
+            ffmpeg = find_ffmpeg()
+            if not ffmpeg:
+                raise RuntimeError("Qwen3-TTS 输出为 WAV 找不到 ffmpeg 转 MP3")
+            proc = await asyncio.create_subprocess_exec(
+                ffmpeg, "-y", "-v", "error", "-i", str(local),
+                "-ar", "48000", "-ac", "2", str(output_path),
+                stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.PIPE,
+            )
+            _, stderr = await asyncio.wait_for(proc.communicate(), timeout=120)
+            if proc.returncode != 0:
+                raise RuntimeError(f"Qwen3-TTS 音频转码失败: {stderr.decode(errors='ignore')[:200]}")
+        print(f"[Qwen3-TTS] 配音完成: {speaker} / {Path(output_path).name}", flush=True)
+        return await get_audio_duration(output_path)
+    raise RuntimeError("Qwen3-TTS 未返回音频文件")
+
+
 async def _generate_tts_impl(text: str, output_path: str, voice: str = "zh-CN-XiaoxiaoNeural",
                              rate: str = "+0%", volume: str = "+0%",
                              engine: str = "edge",
@@ -1650,6 +1743,7 @@ async def _generate_tts_impl(text: str, output_path: str, voice: str = "zh-CN-Xi
       - "edge"    : Edge-TTS（免费，支持 zh/en 100+ 声音）
       - "kokoro"  : Kokoro TTS（本地，高质量，需安装 kokoro-onnx）
       - "cosyvoice": CosyVoice 2（本地，电影级中文配音，需单独部署 localhost:50000）
+      - "qwen3"   : Qwen3-TTS 0.6B（本地 ComfyUI 节点，预设音色+情绪指令）
 
     mood 参数（v6.1）: 场景情绪，自动调整 rate/pitch 实现情感配音
     intensity 参数（v9.9）: 情绪强度 1-10，影响 prosody 调整幅度
@@ -1690,6 +1784,17 @@ async def _generate_tts_impl(text: str, output_path: str, voice: str = "zh-CN-Xi
         except Exception:
             mood_pitch = base_pitch_str
     
+    if engine == "qwen3":
+        try:
+            return await _generate_tts_qwen3(text, output_path, voice=voice, mood=mood,
+                                             intensity=intensity, is_narration=is_narration)
+        except Exception as e:
+            etype = type(e).__name__
+            emsg = str(e) or repr(e)
+            print(f"[WARN] Qwen3-TTS 失败 [{etype}] {emsg[:120]}，回退到 Edge-TTS", flush=True)
+            voice = _translate_voice_from_qwen3(voice)
+            engine = "edge"
+
     if engine == "stepfun":
         try:
             # v12.3: 阶跃星辰云端 TTS — mood 走 instruction 情绪指导（不叠 rate，避免双重加速）
@@ -1859,6 +1964,10 @@ async def combine_audio_video(video_path: str, audio_path: str, output_path: str
     ]
 
     if audio_duration > 0 and video_duration > 0 and audio_duration > video_duration * 1.05:
+        _ratio = audio_duration / video_duration
+        if _ratio > 1.5:
+            print(f"[AV-SYNC] 警告: 配音 {audio_duration:.1f}s 远长于视频 {video_duration:.1f}s "
+                  f"({_ratio:.1f}x)，后期将循环补帧；建议缩短旁白或拆分镜头", flush=True)
         # [v2 全面修复] 音频明显比视频长：循环视频片段填充音频时长，
         # 而非极端慢放（慢放会把 4s 片段拉成 100s 冻帧 = 单图感）。
         # -stream_loop -1 无限循环视频，-t 截断到音频时长，配音完整保留。
@@ -1931,11 +2040,40 @@ def _find_chinese_font() -> str:
     return ""
 
 
+QWEN21_CHECKPOINT = "qwen_image_2.1_int8_convrot.safetensors"
+
+
+def _is_qwen_checkpoint(name: str) -> bool:
+    """是否使用 Qwen-Image 2.1 作为关键帧模型。"""
+    return "qwen_image" in str(name or "").lower()
+
+
+def _normalize_checkpoint_choice(name: str) -> str:
+    """把界面传来的短名补全为完整文件名；空值/未知值原样返回交给自动选择。"""
+    value = str(name or "").strip()
+    if not value:
+        return ""
+    if value.lower().endswith(".safetensors"):
+        return value
+    if value.lower() in ("animagine-xl-4.0", "animagine"):
+        return "animagine-xl-4.0.safetensors"
+    if value.lower() in ("realvisxl_v4.0", "realvisxl"):
+        return "RealVisXL_V4.0.safetensors"
+    if value.lower() in ("qwen-image-2.1", "qwen_image_2.1", "qwen"):
+        return QWEN21_CHECKPOINT
+    return value + ".safetensors"
+
+
 def _auto_select_checkpoint_by_style(job: JobState) -> None:
-    """根据 job.style 自动切换图像/视频模型，让风格与文本题材一致。
-    仅在用户使用默认 anime 模型或风格明确要求写实/水墨时生效。
-    使用 KNOWN_MODEL_SIZES 严格校验完整性，避免加载损坏/未下载完的模型。
+    """根据 job.style 自动切换图像模型。
+
+    修复：用户显式指定 img_checkpoint 时直接返回，不再被风格自动覆盖；
+    只有空值（自动模式）才按风格选模型。
     """
+    if getattr(job, "img_checkpoint", ""):
+        print(f"[Auto] 使用显式指定的关键帧模型: {job.img_checkpoint}", flush=True)
+        return
+    job.img_checkpoint = "animagine-xl-4.0.safetensors"
     style = getattr(job, 'style', 'cinematic')
 
     def _is_complete(name: str, min_size: int = MIN_SAFETENSORS_SIZE) -> bool:
@@ -2226,13 +2364,20 @@ async def merge_videos_with_transitions(
             prev = scene_moods[i-1] if scene_moods and i > 0 and i-1 < len(scene_moods) else ""
             transition_types.append(_select_transition(mood, i, prev_mood=prev))
     
-    # ── 获取每个视频的时长 ──
+    # ── 获取每个视频的时长 + 探测音轨 ──
     durations = []
+    has_audio = []
     for vp in video_paths:
         dur = await get_audio_duration(vp)
         if dur <= 0:
             dur = 5.0  # 默认5秒
         durations.append(dur)
+        # v13.4: 无音轨的片段后续 concat 会报 [i:a] 不存在，这里探测后补静音
+        probe = await asyncio.create_subprocess_exec(
+            ffmpeg, "-hide_banner", "-i", str(vp), "-f", "null", "-",
+            stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.PIPE)
+        _, perr = await probe.communicate()
+        has_audio.append("Audio:" in perr.decode(errors="ignore"))
     
     # ── 构建 xfade filtergraph ──
     # 示例 (3个视频):
@@ -2249,7 +2394,21 @@ async def merge_videos_with_transitions(
             in_label = "[0:v]" if i == 0 else f"[xfade{i-1}]"
             out_label = "[outv]" if i == len(video_paths) - 2 else f"[xfade{i}]"
             fp.append(f"{in_label}[{i+1}:v]xfade=transition={ttypes[i]}:duration={transition_duration}:offset={offset:.2f}{out_label}")
-        fp.append("".join([f"[{i}:a]" for i in range(len(video_paths))]) + f"concat=n={len(video_paths)}:v=0:a=1[outa]")
+        # v13.4: 音频必须在转场处同步缩短，否则视频 xfade 重叠 N×0.5s 后，
+        # 音频仍按全长 concat，导致音画错位（实测 36.3s 视频 vs 36.8s 音频）。
+        # 做法：每段音频裁掉 transition_duration（最后一段不裁），再 concat。
+        a_parts = []
+        for i in range(len(video_paths)):
+            d = durations[i]
+            end = d - transition_duration if i < len(video_paths) - 1 else d
+            end = max(end, 0.1)
+            if has_audio[i]:
+                a_parts.append(f"[{i}:a]atrim=0:{end:.2f},asetpts=PTS-STARTPTS[a{i}]")
+            else:
+                a_parts.append(f"anullsrc=r=48000:cl=stereo,atrim=0:{end:.2f},asetpts=PTS-STARTPTS[a{i}]")
+        fp.extend(a_parts)
+        fp.append("".join(f"[a{i}]" for i in range(len(video_paths))) +
+                  f"concat=n={len(video_paths)}:v=0:a=1[outa]")
         # 字幕烧录（如有）
         if fp and fp[-1].endswith("[outv]"):
             fp[-1] = fp[-1].replace("[outv]", "[outv_pre]")
@@ -3122,16 +3281,19 @@ async def add_scene_sfx(video_path: str, scene, output_path: str, sfx_volume: fl
     # 构建 ffmpeg 混合命令
     inputs = ["-i", video_path]
     sfx_labels = []
+    gain_filters = []
     for i, sfx_p in enumerate(sfx_paths):
         inputs.extend(["-stream_loop", "-1", "-i", sfx_p])
-        sfx_labels.append(f"[{i+1}:a]")
+        # 增益只作用在音效输入上；原先对整个 amix 输出加音量，会把配音一起压低
+        gain_filters.append(f"[{i+1}:a]volume={sfx_volume}[sfx{i}]")
+        sfx_labels.append(f"[sfx{i}]")
     
-    # 混合所有音效
+    # 混合所有音效（原声/配音保持原音量）
     amix_count = 1 + len(sfx_paths)
     sfx_mix = "".join(sfx_labels)
     filter_complex = (
-        f"{sfx_mix}amix=inputs={amix_count}:duration=first:dropout_transition=0,"
-        f"volume={sfx_volume}[outa]"
+        "".join(gain_filters)
+        + f"{sfx_mix}amix=inputs={amix_count}:duration=first:dropout_transition=0[outa]"
     )
     
     cmd = [
@@ -3323,14 +3485,22 @@ professional photography, best quality, 8k.
     # 使用纯净 txt2img 工作流 (不使用 IP-Adapter, 避免循环依赖)
     txt2img_template = load_workflow("txt2img")
     portrait_seed = _stable_seed(character.name + job.id)
-    
+
+    # v13.3: 定妆照走 SDXL 的 CheckpointLoaderSimple，不能塞 Qwen 的 diffusion_model 名
+    # （Qwen 工作流用 UNETLoader，名字不出现在 CheckpointLoaderSimple 列表里，会 400）
+    portrait_ckpt = str(getattr(job, "img_checkpoint", "") or "")
+    if not portrait_ckpt or "qwen" in portrait_ckpt.lower():
+        sdxl = COMFYUI_MODELS_DIR / "checkpoints" / "RealVisXL_V4.0.safetensors"
+        portrait_ckpt = sdxl.name if sdxl.exists() else "animagine-xl-4.0.safetensors"
+        print(f"[Portrait] 定妆照使用 SDXL checkpoint: {portrait_ckpt}", flush=True)
+
     portrait_workflow = fill_workflow(txt2img_template, {
         "POSITIVE_PROMPT": f"masterpiece, best quality, {portrait_prompt}",
         "NEGATIVE_PROMPT": "(worst quality:1.5), (low quality:1.5), blurry, deformed, watermark, text, multiple people, group",
         "SEED": portrait_seed,
         "WIDTH": IMG_WIDTH,
         "HEIGHT": IMG_HEIGHT,
-        "CHECKPOINT": job.img_checkpoint,
+        "CHECKPOINT": portrait_ckpt,
     })
     
     prompt_id = await comfyui.submit_workflow(portrait_workflow)
@@ -7488,8 +7658,13 @@ async def update_settings(job_id: str, img_checkpoint: str = "", vid_checkpoint:
         raise HTTPException(404, "Job not found")
     job = jobs[job_id]
     # v9.6: 自动规范化 checkpoint 名称（补全 .safetensors 扩展名）
+    # Qwen-Image 在 diffusion_models 目录，不能用 checkpoints 的归一化逻辑
     if img_checkpoint:
-        job.img_checkpoint = await comfyui.normalize_checkpoint_name(img_checkpoint)
+        normalized = _normalize_checkpoint_choice(img_checkpoint)
+        if _is_qwen_checkpoint(normalized):
+            job.img_checkpoint = normalized
+        else:
+            job.img_checkpoint = await comfyui.normalize_checkpoint_name(normalized)
     if vid_checkpoint:
         job.vid_checkpoint = await comfyui.normalize_checkpoint_name(vid_checkpoint)
     job.tts_enabled = tts_enabled
@@ -8131,7 +8306,9 @@ async def _generate_scene(job: JobState, scene: Scene, scene_dir: Path,
     # 放宽到 120 分钟(7200s)让 LTX 有充足时间跑完(用户明确"时间不重要,质量优先")。
     # 注: LTX 自身内层 wait_for_result_ws 超时=3600s,外层必须 > 它。
     try:
-        timeout_sec = 7200.0 if getattr(job, 'use_multi_shot', False) else 7200.0
+        # A14B 分段出片：长镜头可达 8 段 × 10 分钟，默认放宽到 6 小时；
+        # 可用 LF_SCENE_TIMEOUT_SEC 覆盖（单位：秒）
+        timeout_sec = float(os.environ.get("LF_SCENE_TIMEOUT_SEC") or 21600)
         return await asyncio.wait_for(
             _generate_scene_impl(job, scene, scene_dir, txt2img_template, img2vid_template),
             timeout=timeout_sec
@@ -8259,9 +8436,9 @@ async def _generate_scene_impl(job: JobState, scene: Scene, scene_dir: Path,
             job.use_ipadapter = False
             job.ipadapter_reference_image = ""
         
-        # 自动切换更适合的 checkpoint
-        if config.get("checkpoint_forced") and config["checkpoint"] != job.img_checkpoint:
-            print(f"[VRAM] 自动切换 checkpoint: {job.img_checkpoint} → {config['checkpoint']} (显存 {free_vram}MB)", flush=True)
+        # 自动切换更适合的 checkpoint：仅在用户未显式指定模型时生效
+        if not getattr(job, "img_checkpoint", "") and config.get("checkpoint_forced"):
+            print(f"[VRAM] 自动选择 checkpoint: {config['checkpoint']} (显存 {free_vram}MB)", flush=True)
             job.img_checkpoint = config["checkpoint"]
         
         print(f"[VRAM] 空闲 {free_vram}MB → 分辨率 {img_w}×{img_h}, "
@@ -8456,8 +8633,25 @@ async def _generate_scene_impl(job: JobState, scene: Scene, scene_dir: Path,
                 job.use_ipadapter = False
                 job.ipadapter_reference_image = ""
 
-        # 选择工作流模板（PuLID > IP-Adapter > Hires.fix > 基础）
-        if job.use_pulid and job.pulid_reference_image:
+        # 仍未指定模型时（如 ComfyUI 状态不可达）使用安全默认值
+        if not getattr(job, "img_checkpoint", ""):
+            job.img_checkpoint = "animagine-xl-4.0.safetensors"
+
+        # 选择工作流模板（Qwen-Image 2.1 > PuLID > IP-Adapter > Hires.fix > 基础）
+        if _is_qwen_checkpoint(job.img_checkpoint):
+            wf_template = load_workflow("txt2img_qwen21")
+            replacements = {
+                "POSITIVE_PROMPT": positive_prompt,
+                "NEGATIVE_PROMPT": negative_prompt,
+                "SEED": scene_seed,
+                "WIDTH": img_w,
+                "HEIGHT": img_h,
+            }
+            # Qwen 工作流不用 SDXL 的 Hires/IP-Adapter/PuLID 节点
+            job.use_ipadapter = False
+            job.use_pulid = False
+            print(f"[Qwen] 关键帧使用 Qwen-Image 2.1 工作流 ({img_w}×{img_h})", flush=True)
+        elif job.use_pulid and job.pulid_reference_image:
             # PuLID (SDXL): 上传参考图 → 加载 PuLID 模型 → 人脸一致性
             pulid_ref_path = job.pulid_reference_image
             if Path(pulid_ref_path).exists():
@@ -8529,7 +8723,7 @@ async def _generate_scene_impl(job: JobState, scene: Scene, scene_dir: Path,
 
         # v13.1: 环境参考图锚定 —— 上传匹配到的环境图，采样时作为 img2img 低 denoise 底图
         env_anchor_uploaded = ""
-        if getattr(job, "use_env_anchor", False):
+        if getattr(job, "use_env_anchor", False) and not _is_qwen_checkpoint(job.img_checkpoint):
             env_anchor_path = ""
             env_match = _get_scene_environment(scene, job)
             if env_match:
@@ -8566,7 +8760,7 @@ async def _generate_scene_impl(job: JobState, scene: Scene, scene_dir: Path,
         
             print(f"[Sampling] 场景 {scene.id} 第{sample_i+1}/{max_samples}版 (seed={sample_seed})", flush=True)
             prompt_id = await comfyui.submit_workflow(sample_workflow)
-            result = await comfyui.wait_for_result_ws(prompt_id, job_id=job_id, scene_id=scene.id, timeout=900)
+            result = await comfyui.wait_for_result_ws(prompt_id, job_id=job_id, scene_id=scene.id, timeout=1800)
         
             outputs = result.get("outputs", {})
             sample_filename = None
@@ -8766,8 +8960,16 @@ async def _generate_scene_impl(job: JobState, scene: Scene, scene_dir: Path,
     scene.status = "generating_tts"
 
     # ── Step 3: 智能分角色配音（v4.0）──
-    if job.tts_enabled and scene.subtitle_text:
-        if job.smart_dubbing and job.characters:
+    # v13.3: SKIP_NARRATION_TTS 只关旁白朗读，不关角色对白。DIALOGUE_TTS=1 时
+    # 强制走智能分角色配音（内部会跳过旁白、保留对白），让嘴型同步有真实人声源。
+    _skip_all_narration = os.environ.get("SKIP_NARRATION_TTS", "0").strip().lower() in ("1", "true", "yes", "on")
+    _dialogue_tts = os.environ.get("DIALOGUE_TTS", "0").strip().lower() in ("1", "true", "yes", "on")
+    if _dialogue_tts:
+        job.smart_dubbing = True
+    if _skip_all_narration and not _dialogue_tts and not getattr(job, "smart_dubbing", False):
+        print(f"[TTS] 旁白关闭且无对白配音，场景 {scene.id} 跳过配音与口型同步", flush=True)
+    elif job.tts_enabled and scene.subtitle_text:
+        if (job.smart_dubbing or _dialogue_tts) and job.characters:
             # v4.0: 智能分角色配音
             await broadcast_progress(job_id, {
                 "type": "scene_status",
@@ -8922,6 +9124,13 @@ async def _single_voice_dubbing(job: JobState, scene: Scene, scene_dir: Path,
     })
     scene.status = "generating_tts"
 
+    # 旁白不朗读：单声音模式下全部文本都属于旁白，直接跳过 TTS
+    if os.environ.get("SKIP_NARRATION_TTS", "0").strip().lower() in ("1", "true", "yes", "on"):
+        print("[TTS] 旁白朗读已关闭（对白由智能配音处理）", flush=True)
+        scene.audio_path = None
+        scene.audio_duration = 0.0
+        return current_vid
+
     audio_path = str(scene_dir / f"scene_{scene.id:03d}.mp3")
     try:
         # v7.0: 自动检测 CosyVoice 2, 优先使用电影级配音
@@ -9020,6 +9229,7 @@ async def _smart_dubbing(job: JobState, scene: Scene, scene_dir: Path,
                           current_vid: str, char_map: dict) -> str:
     """v4.0 智能分角色配音 - 每个角色用不同声音，旁白单独声音"""
     char_map_local = char_map
+    skip_narration = os.environ.get("SKIP_NARRATION_TTS", "0").strip().lower() in ("1", "true", "yes", "on")
 
     # 用 DeepSeek 拆分旁白和对白
     segments = None
@@ -9054,6 +9264,9 @@ async def _smart_dubbing(job: JobState, scene: Scene, scene_dir: Path,
             continue
 
         speaker = seg.get("speaker", "旁白")
+        if skip_narration and (speaker == "旁白" or seg.get("type") == "narration"):
+            print(f"[SmartDubbing] 跳过旁白: {text[:40]}", flush=True)
+            continue
 
         # 确定声音 — 优先用 cosyvoice_voice（如果已分角色预分配）
         if speaker == "旁白" or seg.get("type") == "narration":
@@ -10695,6 +10908,31 @@ async def generate_cover(job: JobState, merged_video_path: str):
     return None
 
 
+@app.post("/api/remix-sfx/{job_id}")
+async def remix_sfx(job_id: str):
+    """用修复后的 SFX 混音链路重做场景音效，保留原配音音量。"""
+    if job_id not in jobs:
+        raise HTTPException(404, "Job not found")
+    job = _get_job(job_id)
+    fixed = []
+    for scene in job.scenes:
+        base = OUTPUT_DIR / job_id / f"scene_{scene.id:03d}_with_bgm.mp4"
+        if not base.exists():
+            continue
+        sfx_path = OUTPUT_DIR / job_id / f"scene_{scene.id:03d}_sfx.mp4"
+        intensity = getattr(scene, "emotional_intensity", 5)
+        dyn_vol = 0.12 + (intensity - 1) * 0.03
+        try:
+            result = await add_scene_sfx(str(base), scene, str(sfx_path), sfx_volume=dyn_vol)
+            if result and Path(sfx_path).exists():
+                scene.final_video_path = str(sfx_path)
+                fixed.append(scene.id)
+        except Exception as e:
+            print(f"[RemixSFX] 场景 {scene.id} 失败: {str(e)[:120]}", flush=True)
+    await JobStorage.save(job)
+    return {"status": "ok", "fixed": fixed}
+
+
 @app.post("/api/merge-videos/{job_id}")
 async def merge_all_videos(job_id: str, bgm_path: str = "", bgm_volume: float = 0.25):
     """合并所有场景视频为一个完整的有声小说视频"""
@@ -11071,6 +11309,10 @@ async def api_generate(req: GenerateRequest):
     from app.models import GenerateRequest as GR
     
     job_id = str(uuid.uuid4())[:8]
+    # 前端默认传 "local"；可由 DEFAULT_VIDEO_MODE 指定更强的本地引擎（如 wan_i2v_gguf）
+    requested_mode = getattr(req, "video_mode", "local") or "local"
+    video_mode = (requested_mode if requested_mode != "local"
+                  else (os.environ.get("DEFAULT_VIDEO_MODE") or requested_mode))
     
     # 创建 JobState
     job = JobState(
@@ -11078,7 +11320,7 @@ async def api_generate(req: GenerateRequest):
         novel_text=req.novel_text,
         novel_title=req.novel_title or "未命名项目",
         deepseek_key=req.deepseek_key or DEEPSEEK_DEFAULT_KEY,
-        img_checkpoint=req.img_checkpoint,
+        img_checkpoint=_normalize_checkpoint_choice(req.img_checkpoint),
         vid_checkpoint=req.vid_checkpoint,
         use_hires_fix=req.use_hires_fix,
         use_ipadapter=req.use_ipadapter,
@@ -11096,7 +11338,7 @@ async def api_generate(req: GenerateRequest):
         use_dual_frame=getattr(req, 'use_dual_frame', False),
         use_manga_fx=getattr(req, 'use_manga_fx', True),
         use_multi_shot=getattr(req, 'use_multi_shot', False),
-        video_mode=getattr(req, 'video_mode', 'local'),
+        video_mode=video_mode,
         subject_preference=getattr(req, 'subject_preference', ""),
         quality_profile=getattr(req, 'quality_profile', ""),
         max_concurrency=getattr(req, 'max_concurrency', 0),
@@ -11733,7 +11975,17 @@ async def _run_generate_pipeline(job_id: str):
                     print(f"[WARN] 提示词生成阶段出错(将使用兜底): {str(e)[:200]}", flush=True)
         
         # v12.0: 预生成环境参考图和关键道具特写图
-        if job.environment_analysis and isinstance(job.environment_analysis.get("environments"), list):
+        # v13.5: 重跑时若已生成过环境/道具且文件仍在磁盘，直接复用，避免重复跑
+        # 昂贵的 SDXL 预生成（上次重测白等 20+ 分钟、22 次 DeepSeek 截断重试）
+        _env_dir = OUTPUT_DIR / job_id / "environments"
+        _prop_dir = OUTPUT_DIR / job_id / "props"
+        _env_files = list(_env_dir.glob("*.png")) + list(_env_dir.glob("*.jpg")) if _env_dir.exists() else []
+        _prop_files = list(_prop_dir.glob("*.png")) + list(_prop_dir.glob("*.jpg")) if _prop_dir.exists() else []
+        _has_cached_env = bool(job.environment_images) and len(_env_files) >= len(job.environment_images)
+        _has_cached_prop = bool(job.prop_images) and len(_prop_files) >= len(job.prop_images)
+        if _has_cached_env and _has_cached_prop:
+            print(f"[Pipeline] 复用已生成环境({len(_env_files)})/道具({len(_prop_files)})，跳过预生成", flush=True)
+        elif job.environment_analysis and isinstance(job.environment_analysis.get("environments"), list):
             try:
                 from environment_generator import EnvironmentGenerator
                 env_gen = EnvironmentGenerator(
