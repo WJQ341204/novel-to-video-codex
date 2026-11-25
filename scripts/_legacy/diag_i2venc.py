@@ -87,7 +87,7 @@ async def main():
                                         "filename": vfile[0], "subfolder": vfile[1], "type": vfile[2]})
                                     if r.status_code == 200:
                                         dest.write_bytes(r.content)
-                                        ff = r"C:\Users\Mr.Wang\ffmpeg-shared\ffmpeg-master-latest-win64-gpl\bin\ffmpeg.exe"
+                                        ff = "ffmpeg"
                                         d0 = ROOT / "output" / "diag_frame0.png"
                                         d1 = ROOT / "output" / "diag_frame_last.png"
                                         subprocess.run([ff, "-y", "-i", str(dest), "-frames:v", "1",
