@@ -31,7 +31,8 @@ import cast as castlib
 import run_state as rs
 
 COMFY = "http://127.0.0.1:8188"
-FF = r"C:/Users/Mr.Wang/ffmpeg-shared/ffmpeg-master-latest-win64-gpl/bin/ffmpeg.exe"
+import shutil as _shutil
+FF = _shutil.which("ffmpeg") or "ffmpeg"
 OUT = ROOT / "output" / "novel_demo_v2"
 OUT.mkdir(parents=True, exist_ok=True)
 AGENT_DIR = ROOT / "output" / "agent"  # image_to_video 固定输出到这里
@@ -305,7 +306,7 @@ async def gen_video(scene, image_path, seed, neg=None):
     return Path(res["file"])
 
 
-FFPROBE = r"C:/Users/Mr.Wang/ffmpeg-shared/ffmpeg-master-latest-win64-gpl/bin/ffprobe.exe"
+FFPROBE = _shutil.which("ffprobe") or "ffprobe"
 
 
 def get_duration(path: Path) -> float:
