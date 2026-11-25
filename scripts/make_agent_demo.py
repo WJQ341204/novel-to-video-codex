@@ -31,7 +31,7 @@ FONT_REG = r"C:\Windows\Fonts\msyh.ttc"
 FONT_BOLD = r"C:\Windows\Fonts\msyhbd.ttc"
 
 FFMPEG = shutil.which("ffmpeg") or \
-    r"C:\Users\Mr.Wang\ffmpeg-shared\ffmpeg-master-latest-win64-gpl\bin\ffmpeg.exe"
+    "ffmpeg"
 
 # 图片模糊背景填充 + 居中（竖图/方图不留丑黑边）
 _PAD = (f"scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},boxblur=24:2[bg];"
