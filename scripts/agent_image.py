@@ -75,7 +75,8 @@ _load_dotenv()
 
 COMFYUI_URL = os.environ.get("COMFYUI_URL", "http://127.0.0.1:8188").rstrip("/")
 DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY", "")
-DEEPSEEK_URL = "https://api.deepseek.com/chat/completions"
+DEEPSEEK_BASE_URL = (os.environ.get("DEEPSEEK_BASE_URL") or "https://api.deepseek.com").rstrip("/")
+DEEPSEEK_URL = DEEPSEEK_BASE_URL + "/chat/completions"
 # 与项目主程序保持一致；可用 AGENT_IMAGE_LLM 覆盖
 DEEPSEEK_MODEL = os.environ.get("AGENT_IMAGE_LLM", "deepseek-v4-flash")
 
@@ -851,7 +852,7 @@ VIDEO_SIZE_PRESETS: dict[str, tuple[int, int]] = {
     "4:3": (960, 704),
 }
 
-_FFMPEG_HINT = r"C:\Users\Mr.Wang\ffmpeg-shared\ffmpeg-master-latest-win64-gpl\bin"
+_FFMPEG_HINT = ""  # 留空则从 PATH 查找 ffmpeg
 
 
 def _find_ffmpeg() -> str:
