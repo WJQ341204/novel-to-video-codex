@@ -23,9 +23,10 @@ import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-PY = r"C:/Users/Mr.Wang/.workbuddy/binaries/python/envs/default/Scripts/python.exe"
-FF = r"C:/Users/Mr.Wang/ffmpeg-shared/ffmpeg-master-latest-win64-gpl/bin/ffmpeg.exe"
-FFPROBE = r"C:/Users/Mr.Wang/ffmpeg-shared/ffmpeg-master-latest-win64-gpl/bin/ffprobe.exe"
+PY = sys.executable  # 当前解释器，跨机器可移植
+import shutil as _shutil
+FF = _shutil.which("ffmpeg") or "ffmpeg"
+FFPROBE = _shutil.which("ffprobe") or "ffprobe"
 COMFY = "http://127.0.0.1:8188"
 OUT = ROOT / "output" / "novel_demo_v2"
 # 与 novel_video.compose_name 的号段规则保持一致：id<200 正篇 / id>=200 残篇
