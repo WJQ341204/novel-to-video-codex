@@ -13,8 +13,9 @@ set http_proxy=
 set https_proxy=
 
 rem ffmpeg 加入 PATH（pydub/合并/字幕烧录依赖）
-set PATH=C:\Users\Mr.Wang\ffmpeg-shared\ffmpeg-master-latest-win64-gpl\bin;%PATH%
+rem ffmpeg 需在 PATH 中（或设置 FFMPEG_DIR 环境变量指向其 bin 目录）
+if defined FFMPEG_DIR set PATH=%FFMPEG_DIR%;%PATH%
 
 echo [1/1] Starting LuminaForge on http://127.0.0.1:8190 ...
-"C:\Users\Mr.Wang\.workbuddy\binaries\python\envs\default\Scripts\python.exe" scripts\main.py
+python scripts\main.py
 pause
